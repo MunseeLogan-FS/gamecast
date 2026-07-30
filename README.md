@@ -1,16 +1,16 @@
 # Pirates Gamecast
 
-A focused, responsive Pittsburgh Pirates game-day viewer built with SvelteKit and MLB's public Stats API.
+A Pittsburgh Pirates game-day tracker built with SvelteKit and MLB's public Stats API.
 
 **Live site:** [pirates.munsee.dev](https://pirates.munsee.dev/)
 
 **Recorded tracking showcase:** [pirates.munsee.dev/demo/](https://pirates.munsee.dev/demo/)
 
-The application discovers the Pirates schedule automatically, presents a purposeful pregame preview, transitions into live coverage without a reload, and preserves the completed game for postgame review. It uses no API key, account, database, or custom backend.
+The site checks the Pirates schedule automatically, shows a pregame preview, and switches to live coverage when the game begins. Completed games stay available for postgame review. It does not need an API key, account, database, or custom backend.
 
 ## Game states
 
-The home route owns schedule discovery, request cancellation, polling, selected-game lifecycle, and top-level state routing. Substantial UI regions are served according to MLB state and available data:
+The main route handles schedule discovery, polling, request cancellation, and game selection. It chooses the page layout from the current MLB game state:
 
 ```text
 Loading          → compact loading state
@@ -21,18 +21,18 @@ Live/final       → GameScoreboard + LiveDashboard
 
 ### Off day
 
-- Clearly states that there is no Pirates game today
-- Shows the next scheduled matchup, opponent logo, local start time, and venue when available
-- Refreshes the schedule every minute and advances automatically when the Eastern game date begins
+- Shows when there is no Pirates game today
+- Includes the next matchup, opponent logo, local start time, and venue when available
+- Checks the schedule every minute and moves to the preview on game day
 
 ### Pregame preview
 
-- Away-at-home matchup without an artificial `0–0` score
+- Away-at-home matchup without showing a pregame `0–0`
 - Team records, local first pitch, venue, series context, broadcasts, and weather when MLB supplies them
 - Probable starters with season statistics
-- Starting lineups with explicit confirmed or pending states
+- Starting lineups with confirmed or pending states
 - Both lineups on desktop and team tabs on mobile
-- Panel-contained player profiles with season statistics
+- Player profiles with season statistics inside the lineup panel
 - No empty live tracker, play log, base state, or balls/strikes/outs
 
 ### Live and final
@@ -42,11 +42,11 @@ Live/final       → GameScoreboard + LiveDashboard
 - Estimated MLB pitch-location and batted-ball visualizations
 - Interactive team lineups, pitchers used, and game-stat player profiles
 - Reverse-chronological play-by-play with all-play and scoring-play filters
-- Phase-aware polling that stops once the game is final
+- Polling that slows between plays and stops once the game is final
 
 ### Tracking demo
 
-Recorded game telemetry is isolated to `/demo`. The normal schedule-driven route never substitutes sample data when live MLB tracking is unavailable.
+The `/demo` page uses recorded game data so the tracking views can be explored between games. Recorded data stays out of the main gamecast.
 
 ## Data source
 
@@ -60,9 +60,9 @@ GET https://statsapi.mlb.com/api/v1/game/{gamePk}/playByPlay?fields=...
 GET https://statsapi.mlb.com/api/v1/people/{personId}/stats
 ```
 
-Requests use MLB's `fields` projection where practical to reduce payload size. Missing probable pitchers, lineups, weather, broadcasts, or player statistics are handled explicitly rather than invented.
+Requests use MLB's `fields` option where practical to keep payloads small. The preview has fallback states for probable pitchers, lineups, weather, broadcasts, and player statistics that MLB has not posted yet.
 
-Pitch and contact positions are **estimated MLB tracking visualizations**. They are not exact GPS locations or an independent judgment of umpire accuracy.
+Pitch and contact positions are **estimated MLB tracking visualizations**. They are not exact physical locations or an independent judgment of umpire accuracy.
 
 This is an unofficial project and is not affiliated with or endorsed by Major League Baseball or the Pittsburgh Pirates. MLB controls API availability and response shape.
 
@@ -84,11 +84,11 @@ npm install
 npm run dev
 ```
 
-The development server uses strict port and Host validation configured in `vite.config.ts`.
+Development server port and Host rules are configured in `vite.config.ts`.
 
 ## Quality gates
 
-Run the complete local verification sequence before deployment:
+Before deploying, run:
 
 ```sh
 npm run format
@@ -119,4 +119,4 @@ test/visualization.test.mjs               Data, state, architecture, and visuali
 
 ## Deployment notes
 
-The application is fully prerendered with `@sveltejs/adapter-static`. Serve `build/` through a durable static process or hosting platform. Immutable SvelteKit assets can be cached long-term; route documents should be revalidated or served with conservative caching so deployments do not mix old route manifests with new chunks.
+The app is prerendered with `@sveltejs/adapter-static`. Production files are written to `build/` and can be served by a static host. SvelteKit's immutable assets can use long cache times, while route documents should be revalidated so a deployment does not mix old pages with new chunks.
