@@ -79,6 +79,12 @@
 
 <footer>
 	<span>Unofficial Pirates Gamecast · Recorded MLB Stats API data</span>
+	<section class="fan-section" aria-label="Fans">
+		<span>Fans</span>
+		<ol>
+			<li><span>01</span><strong>Gage Asing</strong></li>
+		</ol>
+	</section>
 	<a href={resolve('/')} data-sveltekit-reload>Return to today’s game →</a>
 </footer>
 
@@ -371,6 +377,7 @@
 		min-height: 70px;
 		padding: 20px max(24px, calc((100vw - 1120px) / 2));
 		display: flex;
+		gap: 24px;
 		align-items: center;
 		justify-content: space-between;
 		background: #111;
@@ -383,6 +390,32 @@
 	footer a {
 		color: #fdb827;
 		text-decoration: none;
+	}
+	.fan-section {
+		display: flex;
+		gap: 8px;
+		align-items: center;
+	}
+	.fan-section > span {
+		color: #767671;
+	}
+	.fan-section ol {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+	.fan-section li {
+		display: flex;
+		gap: 5px;
+		align-items: baseline;
+	}
+	.fan-section li span {
+		color: #a57b17;
+		font-variant-numeric: tabular-nums;
+	}
+	.fan-section strong {
+		color: #d6d6cf;
+		font-weight: 900;
 	}
 	@media (max-width: 760px) {
 		.topbar {

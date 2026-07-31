@@ -41,6 +41,19 @@ test('cross-route links force a document reload across deployments', () => {
 	assert.equal((demo.match(/href=\{resolve\('\/'\)\} data-sveltekit-reload/g) ?? []).length, 3);
 });
 
+test('both footers list Gage Asing as the first fan', () => {
+	const routes = [
+		readFileSync(new URL('../src/routes/+page.svelte', import.meta.url), 'utf8'),
+		readFileSync(new URL('../src/routes/demo/+page.svelte', import.meta.url), 'utf8')
+	];
+
+	for (const source of routes) {
+		assert.match(source, /<section class="fan-section" aria-label="Fans">/);
+		assert.match(source, /<li><span>01<\/span><strong>Gage Asing<\/strong><\/li>/);
+		assert.equal((source.match(/Gage Asing/g) ?? []).length, 1);
+	}
+});
+
 test('game times render in the viewer local timezone', () => {
 	const source = [
 		readFileSync(new URL('../src/lib/components/GameScoreboard.svelte', import.meta.url), 'utf8'),

@@ -334,6 +334,12 @@
 	<footer>
 		<span>Unofficial Pirates gamecast</span>
 		<a href={resolve('/demo')} data-sveltekit-reload>Tracking demo</a>
+		<section class="fan-section" aria-label="Fans">
+			<span>Fans</span>
+			<ol>
+				<li><span>01</span><strong>Gage Asing</strong></li>
+			</ol>
+		</section>
 		<span
 			>Data: MLB Stats API · No tracking · {lastUpdated
 				? `Updated ${lastUpdated.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}`
@@ -547,6 +553,8 @@
 		margin: auto;
 		padding: 20px 24px 35px;
 		display: flex;
+		gap: 24px;
+		align-items: center;
 		justify-content: space-between;
 		color: #8b8b87;
 		border-top: 1px solid #d8d8d3;
@@ -562,6 +570,32 @@
 	}
 	footer a:hover {
 		color: #111;
+	}
+	.fan-section {
+		display: flex;
+		gap: 8px;
+		align-items: center;
+	}
+	.fan-section > span {
+		color: #8b8b87;
+	}
+	.fan-section ol {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+	.fan-section li {
+		display: flex;
+		gap: 5px;
+		align-items: baseline;
+	}
+	.fan-section li span {
+		color: #b28a2b;
+		font-variant-numeric: tabular-nums;
+	}
+	.fan-section strong {
+		color: #353531;
+		font-weight: 900;
 	}
 	@keyframes pulse {
 		50% {
