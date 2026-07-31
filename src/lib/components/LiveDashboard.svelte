@@ -1,6 +1,8 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import GameVisualization from '$lib/GameVisualization.svelte';
 	import LineupPanel from '$lib/components/LineupPanel.svelte';
+	import { currentAtBatPitches } from '$lib/visualization.js';
 	import {
 		isFinal,
 		isLive,
@@ -31,6 +33,7 @@
 	} = $props();
 
 	let scoringOnly = $state(false);
+	let pitchLedger = $state<HTMLOListElement>();
 
 	const status = $derived<GameStatus>(feed?.gameData.status ?? game.status);
 	const away = $derived(feed?.gameData.teams.away ?? game.teams.away.team);
@@ -41,6 +44,7 @@
 			? (linescore?.offense?.batter?.id ?? feed?.liveData.plays.currentPlay?.matchup?.batter?.id)
 			: undefined
 	);
+	const atBatPitches = $derived(currentAtBatPitches(visualizationPlay));
 	const awayScore = $derived(linescore?.teams?.away?.runs ?? game.teams.away.score ?? 0);
 	const homeScore = $derived(linescore?.teams?.home?.runs ?? game.teams.home.score ?? 0);
 	const plays = $derived(feed?.liveData.plays.allPlays ?? []);
@@ -53,6 +57,14 @@
 	const piratesAreHome = $derived(home?.id === 134);
 	const piratesScore = $derived(piratesAreHome ? homeScore : awayScore);
 	const opponentScore = $derived(piratesAreHome ? awayScore : homeScore);
+
+	$effect(() => {
+		const pitchCount = atBatPitches.length;
+		if (!pitchCount || !pitchLedger) return;
+		void tick().then(() => {
+			if (pitchLedger) pitchLedger.scrollTop = pitchLedger.scrollHeight;
+		});
+	});
 
 	function shortTeam(team?: TeamRef) {
 		return team?.abbreviation ?? team?.name.split(' ').at(-1)?.slice(0, 3).toUpperCase() ?? '—';
@@ -107,6 +119,24 @@
 				<div class="due-up">
 					<span>On deck</span><strong>{linescore?.offense?.onDeck?.fullName ?? '—'}</strong>
 					<span>In the hole</span><strong>{linescore?.offense?.inHole?.fullName ?? '—'}</strong>
+				</div>
+			{/if}
+			{#if isLive(status) && atBatPitches.length}
+				<div class="at-bat-pitches" aria-live="polite">
+					<div class="pitch-ledger-heading">
+						<span>At-bat pitches</span><strong>{atBatPitches.length}</strong>
+					</div>
+					<ol bind:this={pitchLedger}>
+						{#each atBatPitches as pitch, index (pitch.number)}
+							<li class:latest={index === atBatPitches.length - 1}>
+								<span class="pitch-symbol {pitch.kind}">{pitch.number}</span>
+								<span class="pitch-call">
+									<strong>{pitch.call}</strong>
+									{#if pitch.detail}<small>{pitch.detail}</small>{/if}
+								</span>
+							</li>
+						{/each}
+					</ol>
 				</div>
 			{/if}
 			{#if latestPlay?.result.description}
@@ -272,6 +302,94 @@
 	.due-up strong {
 		text-align: right;
 		font-size: 9px;
+	}
+	.at-bat-pitches {
+		margin: 0 0 18px;
+		border-bottom: 1px solid #ecece8;
+	}
+	.pitch-ledger-heading {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0 0 7px;
+		color: #8a6b20;
+		font-size: 8px;
+		font-weight: 900;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+	}
+	.pitch-ledger-heading strong {
+		font-size: 9px;
+		font-variant-numeric: tabular-nums;
+	}
+	.at-bat-pitches ol {
+		list-style: none;
+		max-height: 160px;
+		margin: 0;
+		padding: 0;
+		overflow-y: auto;
+		scrollbar-width: thin;
+	}
+	.at-bat-pitches li {
+		min-height: 38px;
+		padding: 6px 3px;
+		display: grid;
+		grid-template-columns: 24px minmax(0, 1fr);
+		gap: 9px;
+		align-items: center;
+		border-top: 1px solid #f0f0ec;
+	}
+	.at-bat-pitches li.latest {
+		background: #fff9e8;
+	}
+	.pitch-symbol {
+		width: 22px;
+		height: 22px;
+		display: grid;
+		place-items: center;
+		border: 2px solid #fff;
+		border-radius: 50%;
+		color: #111;
+		box-shadow: 0 0 0 1px #d5d5cf;
+		font-size: 9px;
+		font-weight: 900;
+		font-variant-numeric: tabular-nums;
+	}
+	.pitch-symbol.ball {
+		background: #5bc982;
+	}
+	.pitch-symbol.strike {
+		background: #ee645c;
+	}
+	.pitch-symbol.foul {
+		background: #ee645c;
+		border-color: #3b82f6;
+		box-shadow: none;
+	}
+	.pitch-symbol.inplay {
+		background: #fdb827;
+	}
+	.pitch-symbol.neutral {
+		background: #c8c8c0;
+	}
+	.pitch-call {
+		min-width: 0;
+	}
+	.pitch-call strong,
+	.pitch-call small {
+		display: block;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.pitch-call strong {
+		font-size: 10px;
+		font-weight: 850;
+	}
+	.pitch-call small {
+		margin-top: 2px;
+		color: #888;
+		font-size: 8px;
 	}
 	.matchup-names > div {
 		padding: 13px 0;

@@ -329,6 +329,70 @@ test('tracking view follows contact, waits between batters, then returns for the
 	assert.match(source, /class="bat-side"/);
 });
 
+test('builds a persistent pitch ledger for the current at-bat', async () => {
+	const visualization = await import('../src/lib/visualization.js');
+	assert.equal(typeof visualization.currentAtBatPitches, 'function');
+
+	const pitches = visualization.currentAtBatPitches({
+		playEvents: [
+			{ type: 'action', details: { description: 'Mound Visit' } },
+			{
+				isPitch: true,
+				details: {
+					isStrike: true,
+					call: { code: 'C', description: 'Called Strike' },
+					type: { description: 'Four-Seam Fastball' }
+				},
+				pitchData: { startSpeed: 96.27 }
+			},
+			{
+				isPitch: true,
+				details: {
+					isStrike: true,
+					call: { code: 'S', description: 'Swinging Strike' },
+					type: { description: 'Slider' }
+				},
+				pitchData: { startSpeed: 87.04 }
+			},
+			{
+				isPitch: true,
+				details: {
+					isBall: true,
+					call: { code: 'B', description: 'Ball In Dirt' },
+					type: { description: 'Sweeper' }
+				},
+				pitchData: { startSpeed: 84.94 }
+			},
+			{
+				isPitch: true,
+				details: {
+					isStrike: true,
+					call: { code: 'F', description: 'Foul' },
+					type: { description: 'Cutter' }
+				},
+				pitchData: { startSpeed: 91 }
+			}
+		]
+	});
+
+	assert.deepEqual(pitches, [
+		{ number: 1, kind: 'strike', call: 'Called Strike', detail: 'Four-Seam Fastball · 96.3 MPH' },
+		{ number: 2, kind: 'strike', call: 'Swinging Strike', detail: 'Slider · 87.0 MPH' },
+		{ number: 3, kind: 'ball', call: 'Ball In Dirt', detail: 'Sweeper · 84.9 MPH' },
+		{ number: 4, kind: 'foul', call: 'Foul', detail: 'Cutter · 91.0 MPH' }
+	]);
+
+	const dashboard = readFileSync(
+		new URL('../src/lib/components/LiveDashboard.svelte', import.meta.url),
+		'utf8'
+	);
+	assert.match(dashboard, /currentAtBatPitches\(visualizationPlay\)/);
+	assert.match(dashboard, /class="at-bat-pitches"/);
+	assert.match(dashboard, /class="pitch-symbol \{pitch\.kind\}"/);
+	assert.match(dashboard, /bind:this=\{pitchLedger\}/);
+	assert.match(dashboard, /pitchLedger\.scrollTop = pitchLedger\.scrollHeight/);
+});
+
 test('builds a tiny current-play URL without historical plays', () => {
 	const url = new URL(buildCurrentVisualizationUrl('https://example.test/api', 123));
 	const fields = url.searchParams.get('fields') ?? '';

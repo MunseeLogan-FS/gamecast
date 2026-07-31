@@ -155,6 +155,29 @@ export function classifyPitch(event) {
 	return 'neutral';
 }
 
+/**
+ * Build the persistent pitch list shown for MLB's current at-bat.
+ * Non-pitch events such as mound visits are ignored.
+ * @param {{playEvents?: Array<any>} | undefined} play
+ */
+export function currentAtBatPitches(play) {
+	return (play?.playEvents ?? [])
+		.filter((event) => event?.isPitch || event?.pitchData)
+		.map((event, index) => {
+			const type = event.details?.type?.description ?? '';
+			const speed =
+				event.pitchData?.startSpeed !== undefined
+					? `${event.pitchData.startSpeed.toFixed(1)} MPH`
+					: '';
+			return {
+				number: index + 1,
+				kind: classifyPitch(event),
+				call: event.details?.call?.description ?? event.details?.description ?? 'Pitch',
+				detail: [type, speed].filter(Boolean).join(' · ')
+			};
+		});
+}
+
 /** @param {Array<any>} plays Return the newest event carrying batted-ball telemetry. */
 export function latestBattedBall(plays = []) {
 	for (let playIndex = plays.length - 1; playIndex >= 0; playIndex -= 1) {
