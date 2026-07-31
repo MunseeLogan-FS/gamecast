@@ -36,6 +36,11 @@
 	const away = $derived(feed?.gameData.teams.away ?? game.teams.away.team);
 	const home = $derived(feed?.gameData.teams.home ?? game.teams.home.team);
 	const linescore = $derived(feed?.liveData.linescore);
+	const activeBatterId = $derived(
+		isLive(status)
+			? (linescore?.offense?.batter?.id ?? feed?.liveData.plays.currentPlay?.matchup?.batter?.id)
+			: undefined
+	);
 	const awayScore = $derived(linescore?.teams?.away?.runs ?? game.teams.away.score ?? 0);
 	const homeScore = $derived(linescore?.teams?.home?.runs ?? game.teams.home.score ?? 0);
 	const plays = $derived(feed?.liveData.plays.allPlays ?? []);
@@ -128,7 +133,7 @@
 			<GameVisualization currentPlay={visualizationPlay} {hitHistory} live={isLive(status)} />
 		</div>
 
-		<div class="lineup-slot"><LineupPanel {boxscore} {away} {home} /></div>
+		<div class="lineup-slot"><LineupPanel {boxscore} {away} {home} {activeBatterId} /></div>
 	</div>
 
 	<div class="play-panel">

@@ -7,17 +7,33 @@
 		type TeamRef
 	} from '$lib/mlb';
 
-	let { boxscore, away, home }: { boxscore: GameBoxscore | null; away?: TeamRef; home?: TeamRef } =
-		$props();
+	let {
+		boxscore,
+		away,
+		home,
+		activeBatterId
+	}: {
+		boxscore: GameBoxscore | null;
+		away?: TeamRef;
+		home?: TeamRef;
+		activeBatterId?: number;
+	} = $props();
 
 	let activeSide = $state<'away' | 'home'>('home');
 	let selectedEntry = $state<LineupEntry | null>(null);
 	let initializedTeams = $state('');
+	let followedBatterId = $state<number | undefined>();
 
 	const activeTeam = $derived(boxscore?.teams[activeSide]);
 	const entries = $derived(lineupForTeam(activeTeam));
 	const hitters = $derived(entries.filter((entry) => entry.kind === 'batter'));
 	const pitchers = $derived(entries.filter((entry) => entry.kind === 'pitcher'));
+	const activeBatterSide = $derived.by(() => {
+		if (!activeBatterId || !boxscore) return null;
+		if (boxscore.teams.away.players[`ID${activeBatterId}`]) return 'away';
+		if (boxscore.teams.home.players[`ID${activeBatterId}`]) return 'home';
+		return null;
+	});
 	const modalStats = $derived(
 		selectedEntry ? playerGameStats(selectedEntry.player, selectedEntry.kind) : []
 	);
@@ -35,7 +51,20 @@
 		if (key && key !== initializedTeams) {
 			activeSide = boxscore?.teams.home.team.id === 134 ? 'home' : 'away';
 			selectedEntry = null;
+			followedBatterId = undefined;
 			initializedTeams = key;
+		}
+	});
+
+	$effect(() => {
+		if (!activeBatterId) {
+			followedBatterId = undefined;
+			return;
+		}
+		if (activeBatterSide && activeBatterId !== followedBatterId) {
+			activeSide = activeBatterSide;
+			selectedEntry = null;
+			followedBatterId = activeBatterId;
 		}
 	});
 
@@ -77,14 +106,22 @@
 		{#if hitters.length}
 			<ol class="hitters">
 				{#each hitters as entry (`${entry.kind}-${entry.player.person.id}`)}
-					<li>
-						<button onclick={() => (selectedEntry = entry)}>
+					<li class:at-bat={entry.player.person.id === activeBatterId}>
+						<button
+							onclick={() => (selectedEntry = entry)}
+							aria-current={entry.player.person.id === activeBatterId ? 'true' : undefined}
+							aria-label={`${entry.player.person.fullName}${entry.player.person.id === activeBatterId ? ', currently at bat' : ''}`}
+						>
 							<span class="order">{entry.order}</span>
 							<span class="player-name">
 								<strong>{entry.player.person.fullName}</strong>
 								<small>{entry.player.stats?.batting?.summary ?? 'Game stats pending'}</small>
 							</span>
-							<span class="position">{entry.player.position?.abbreviation ?? '—'}</span>
+							<span class="position"
+								>{entry.player.person.id === activeBatterId
+									? 'At bat'
+									: (entry.player.position?.abbreviation ?? '—')}</span
+							>
 						</button>
 					</li>
 				{/each}
@@ -232,6 +269,28 @@
 	}
 	li button:hover {
 		background: #fff9e8;
+	}
+	li.at-bat button,
+	li.at-bat button:hover {
+		background: #fff4cf;
+		box-shadow: inset 4px 0 #fdb827;
+	}
+	li.at-bat .order {
+		width: 24px;
+		height: 24px;
+		display: grid;
+		place-items: center;
+		color: #111;
+		background: #fdb827;
+	}
+	li.at-bat .player-name strong {
+		font-weight: 900;
+	}
+	li.at-bat .position {
+		color: #76560c;
+		font-size: 8px;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
 	}
 	.order,
 	.pitcher-mark {

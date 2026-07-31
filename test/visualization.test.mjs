@@ -34,6 +34,24 @@ test('main gamecast exposes B/S/O only during live play', () => {
 	assert.match(source, /Math\.min\(linescore\?\.outs \?\? 0, 2\)/);
 });
 
+test('live lineup follows and highlights the active batter', () => {
+	const dashboard = readFileSync(
+		new URL('../src/lib/components/LiveDashboard.svelte', import.meta.url),
+		'utf8'
+	);
+	const lineup = readFileSync(
+		new URL('../src/lib/components/LineupPanel.svelte', import.meta.url),
+		'utf8'
+	);
+
+	assert.match(dashboard, /const activeBatterId = \$derived/);
+	assert.match(dashboard, /<LineupPanel \{boxscore\} \{away\} \{home\} \{activeBatterId\} \/>/);
+	assert.match(lineup, /activeBatterId\?: number/);
+	assert.match(lineup, /class:at-bat=\{entry\.player\.person\.id === activeBatterId\}/);
+	assert.match(lineup, /aria-current=\{entry\.player\.person\.id === activeBatterId/);
+	assert.match(lineup, /activeBatterId !== followedBatterId/);
+});
+
 test('cross-route links force a document reload across deployments', () => {
 	const home = readFileSync(new URL('../src/routes/+page.svelte', import.meta.url), 'utf8');
 	const demo = readFileSync(new URL('../src/routes/demo/+page.svelte', import.meta.url), 'utf8');
