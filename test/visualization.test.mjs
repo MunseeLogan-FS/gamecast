@@ -344,7 +344,7 @@ test('tracking view follows contact, waits between batters, then returns for the
 	assert.equal(state.handledPitchKey, '42:1');
 
 	const source = readFileSync(
-		new URL('../src/lib/GameVisualization.svelte', import.meta.url),
+		new URL('../src/lib/components/PitchTrajectory.svelte', import.meta.url),
 		'utf8'
 	);
 	assert.match(source, /class="bat-side"/);
@@ -436,6 +436,26 @@ test('builds a tiny current-play URL without historical plays', () => {
 	assert.equal(url.pathname, '/api/v1.1/game/123/feed/live');
 	assert.match(fields, /currentPlay/);
 	assert.match(fields, /pitchData/);
+	for (const field of [
+		'startSpeed',
+		'pX',
+		'pZ',
+		'x0',
+		'y0',
+		'z0',
+		'vX0',
+		'vY0',
+		'vZ0',
+		'aX',
+		'aY',
+		'aZ'
+	]) {
+		assert.ok(fields.split(',').includes(field), `current-play fields should include ${field}`);
+	}
+	assert.doesNotMatch(
+		fields,
+		/endSpeed|plateTime|extension|pfxX|pfxZ|breaks|spinRate|spinDirection/
+	);
 	assert.doesNotMatch(fields, /allPlays/);
 });
 
@@ -446,6 +466,7 @@ test('builds a hit-history URL without historical pitch telemetry', () => {
 	assert.match(fields, /allPlays/);
 	assert.match(fields, /hitData/);
 	assert.doesNotMatch(fields, /pitchData/);
+	assert.doesNotMatch(fields, /plateTime|vX0|aX|spinRate/);
 });
 
 test('maps the center of the pitch coordinate range to the canvas center', () => {
@@ -477,11 +498,34 @@ test('classifies balls, strikes, fouls, and balls put in play', () => {
 
 test('pitch tracker gives foul balls a blue outlined legend and marker', () => {
 	const source = readFileSync(
-		new URL('../src/lib/GameVisualization.svelte', import.meta.url),
+		new URL('../src/lib/components/PitchTrajectory.svelte', import.meta.url),
 		'utf8'
 	);
 	assert.match(source, /<i class="foul"><\/i>Foul/);
-	assert.match(source, /\.pitch-point\.foul \.pitch-dot\s*\{[^}]*stroke:\s*#3b82f6/s);
+	assert.match(source, /\.pitch-endpoint\.foul \.pitch-dot\s*\{[^}]*stroke:\s*#3b82f6/s);
+});
+
+test('pitch selection recreates the selected path so its replay animation restarts', () => {
+	const source = readFileSync(
+		new URL('../src/lib/components/PitchTrajectory.svelte', import.meta.url),
+		'utf8'
+	);
+	assert.match(source, /\{#key selectedModel\?\.key\}/);
+});
+
+test('manual pitch selection survives Zone and Contact view remounts', () => {
+	const parentSource = readFileSync(
+		new URL('../src/lib/GameVisualization.svelte', import.meta.url),
+		'utf8'
+	);
+	const trajectorySource = readFileSync(
+		new URL('../src/lib/components/PitchTrajectory.svelte', import.meta.url),
+		'utf8'
+	);
+	assert.match(parentSource, /bind:selectedKey=\{selectedPitchKey\}/);
+	assert.match(parentSource, /renderMode="three"/);
+	assert.match(trajectorySource, /selectedKey\s*=\s*\$bindable/);
+	assert.match(trajectorySource, /contextPitches=\{pitches\}/);
 });
 
 test('finds the newest batted ball in a play history', () => {

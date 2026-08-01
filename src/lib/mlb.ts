@@ -159,11 +159,21 @@ export interface PitchEvent {
 	count?: { balls?: number; strikes?: number; outs?: number };
 	pitchData?: {
 		startSpeed?: number;
-		endSpeed?: number;
 		strikeZoneTop?: number;
 		strikeZoneBottom?: number;
-		zone?: number;
-		coordinates?: { pX?: number; pZ?: number };
+		coordinates?: {
+			pX?: number;
+			pZ?: number;
+			x0?: number;
+			y0?: number;
+			z0?: number;
+			vX0?: number;
+			vY0?: number;
+			vZ0?: number;
+			aX?: number;
+			aY?: number;
+			aZ?: number;
+		};
 	};
 	hitData?: HitData;
 	isPitch?: boolean;
