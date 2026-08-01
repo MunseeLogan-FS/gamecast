@@ -8,6 +8,18 @@ const PITCH_VIEW = Object.freeze({
 	zMax: 5
 });
 
+const PITCH_KINEMATIC_FIELDS = /** @type {const} */ ([
+	'x0',
+	'y0',
+	'z0',
+	'vX0',
+	'vY0',
+	'vZ0',
+	'aX',
+	'aY',
+	'aZ'
+]);
+
 const CURRENT_VISUALIZATION_FIELDS = [
 	'gamePk',
 	'liveData',
@@ -105,6 +117,42 @@ export function buildCurrentVisualizationUrl(apiRoot, gamePk) {
 export function buildHitHistoryUrl(apiRoot, gamePk) {
 	const parameters = new URLSearchParams({ fields: HIT_HISTORY_FIELDS });
 	return `${apiRoot}/v1/game/${gamePk}/playByPlay?${parameters}`;
+}
+
+/**
+ * Fill transiently omitted kinematics from the previous poll for the same at-bat.
+ * MLB can expose pX/pZ before all movement fields settle, which would otherwise
+ * make the live renderer flash from Three.js back to its endpoint-only SVG.
+ * @param {import('./mlb').Play | undefined} previousPlay
+ * @param {import('./mlb').Play | undefined} nextPlay
+ */
+export function preservePitchTelemetry(previousPlay, nextPlay) {
+	if (!previousPlay || !nextPlay || previousPlay.about.atBatIndex !== nextPlay.about.atBatIndex) {
+		return nextPlay;
+	}
+	const previousEvents = previousPlay.playEvents ?? [];
+	let changed = false;
+	const playEvents = (nextPlay.playEvents ?? []).map((event, index) => {
+		const previousCoordinates = previousEvents[index]?.pitchData?.coordinates;
+		const nextCoordinates = event.pitchData?.coordinates;
+		if (!previousCoordinates || !nextCoordinates) return event;
+		const missingKinematics = PITCH_KINEMATIC_FIELDS.some(
+			(field) => !Number.isFinite(nextCoordinates[field])
+		);
+		const previousKinematicsComplete = PITCH_KINEMATIC_FIELDS.every((field) =>
+			Number.isFinite(previousCoordinates[field])
+		);
+		if (!missingKinematics || !previousKinematicsComplete) return event;
+		changed = true;
+		return {
+			...event,
+			pitchData: {
+				...event.pitchData,
+				coordinates: { ...previousCoordinates, ...nextCoordinates }
+			}
+		};
+	});
+	return changed ? { ...nextPlay, playEvents } : nextPlay;
 }
 
 /** @param {number} value @param {number} minimum @param {number} maximum */

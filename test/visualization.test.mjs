@@ -31,6 +31,7 @@ import {
 	latestBattedBall,
 	mapHitToField,
 	mapPitchToZone,
+	preservePitchTelemetry,
 	strikeZoneRect,
 	visualizationStateForGame
 } from '../src/lib/visualization.js';
@@ -457,6 +458,27 @@ test('builds a tiny current-play URL without historical plays', () => {
 		/endSpeed|plateTime|extension|pfxX|pfxZ|breaks|spinRate|spinDirection/
 	);
 	assert.doesNotMatch(fields, /allPlays/);
+});
+
+test('preserves complete pitch telemetry across a partial poll of the same at-bat', () => {
+	const previous = structuredClone(DEMO_CURRENT_PLAY);
+	const partial = structuredClone(DEMO_CURRENT_PLAY);
+	partial.playEvents[0].pitchData.coordinates = {
+		pX: partial.playEvents[0].pitchData.coordinates.pX,
+		pZ: partial.playEvents[0].pitchData.coordinates.pZ
+	};
+	const stabilized = preservePitchTelemetry(previous, partial);
+	assert.equal(
+		stabilized.playEvents[0].pitchData.coordinates.vY0,
+		previous.playEvents[0].pitchData.coordinates.vY0
+	);
+	assert.equal(
+		stabilized.playEvents[0].pitchData.coordinates.pX,
+		partial.playEvents[0].pitchData.coordinates.pX
+	);
+
+	partial.about.atBatIndex += 1;
+	assert.equal(preservePitchTelemetry(previous, partial), partial);
 });
 
 test('builds a hit-history URL without historical pitch telemetry', () => {

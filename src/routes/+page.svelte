@@ -5,6 +5,7 @@
 	import GameScoreboard from '$lib/components/GameScoreboard.svelte';
 	import LiveDashboard from '$lib/components/LiveDashboard.svelte';
 	import OffDayView from '$lib/components/OffDayView.svelte';
+	import { preservePitchTelemetry } from '$lib/visualization.js';
 	import {
 		PREVIEW_REFRESH_MS,
 		SCHEDULE_REFRESH_MS,
@@ -168,7 +169,12 @@
 		visualizationController = new AbortController();
 		try {
 			const data = await fetchCurrentVisualization(gamePk, visualizationController.signal);
-			if (selectedGamePk === gamePk) visualizationPlay = data.liveData.plays.currentPlay;
+			if (selectedGamePk === gamePk) {
+				visualizationPlay = preservePitchTelemetry(
+					visualizationPlay,
+					data.liveData.plays.currentPlay
+				);
+			}
 		} catch (requestError) {
 			if ((requestError as Error).name !== 'AbortError') visualizationPlay = undefined;
 		}
