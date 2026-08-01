@@ -192,6 +192,22 @@ export function latestBattedBall(plays = []) {
 }
 
 /**
+ * Reset event bookkeeping when the dashboard moves to another game.
+ * @param {{mode: 'zone' | 'field', handledContactAtBat: number | null, handledPitchKey: string, gamePk?: number}} state
+ * @param {number | undefined} gamePk
+ * @returns {{mode: 'zone' | 'field', handledContactAtBat: number | null, handledPitchKey: string, gamePk?: number}}
+ */
+export function visualizationStateForGame(state, gamePk) {
+	if (state.gamePk === gamePk) return state;
+	return {
+		mode: 'zone',
+		handledContactAtBat: null,
+		handledPitchKey: '',
+		gamePk
+	};
+}
+
+/**
  * Advance the automatic tracker view without disturbing a manual selection when no new event exists.
  * @param {{mode: 'zone' | 'field', handledContactAtBat: number | null, handledPitchKey: string}} state
  * @param {number | undefined} contactAtBat

@@ -2,6 +2,9 @@
 	import { resolve } from '$app/paths';
 	import GameVisualization from '$lib/GameVisualization.svelte';
 	import { DEMO_CURRENT_PLAY, DEMO_HIT_HISTORY } from '$lib/demo-data.js';
+	import { BALLPARK_PROFILES } from '$lib/field-geometry.js';
+
+	let selectedVenueId = $state(31);
 </script>
 
 <svelte:head>
@@ -49,7 +52,19 @@
 					<div><small>Pitcher</small><b>Gerardo Carrillo</b></div>
 				</div>
 			</div>
-			<GameVisualization currentPlay={DEMO_CURRENT_PLAY} hitHistory={DEMO_HIT_HISTORY} />
+			<label class="park-picker">
+				<span>Ballpark preview</span>
+				<select bind:value={selectedVenueId} aria-label="Ballpark preview">
+					{#each BALLPARK_PROFILES as profile (profile.venueId)}
+						<option value={profile.venueId}>{profile.name}</option>
+					{/each}
+				</select>
+			</label>
+			<GameVisualization
+				currentPlay={DEMO_CURRENT_PLAY}
+				hitHistory={DEMO_HIT_HISTORY}
+				venueId={selectedVenueId}
+			/>
 		</div>
 
 		<div class="guide">
@@ -69,8 +84,8 @@
 				<p class="section-number">02 / Contact</p>
 				<h3>Switch views to follow the ball.</h3>
 				<p>
-					Select <b>Contact</b> above the visualization to replay a tracked ground ball with exit velocity,
-					launch angle, and estimated field location.
+					Select <b>Contact</b> above the visualization, then choose a ballpark to compare its current
+					outfield shape.
 				</p>
 			</div>
 		</div>
@@ -79,6 +94,7 @@
 
 <footer>
 	<span>Unofficial Pirates Gamecast · Recorded MLB Stats API data</span>
+	<span>Locations reconstructed from available MLB tracking data.</span>
 	<section class="fan-section" aria-label="Fans">
 		<span>Fans</span>
 		<ol>
@@ -293,6 +309,31 @@
 		font-style: normal;
 		font-weight: 800;
 		text-transform: uppercase;
+	}
+	.park-picker {
+		display: grid;
+		gap: 6px;
+		margin: 18px 0 -2px;
+		padding-top: 14px;
+		border-top: 1px solid #dddcd6;
+	}
+	.park-picker span {
+		color: #89877f;
+		font-size: 7px;
+		font-weight: 900;
+		letter-spacing: 0.11em;
+		text-transform: uppercase;
+	}
+	.park-picker select {
+		width: 100%;
+		padding: 8px 28px 8px 9px;
+		border: 1px solid #cbc9c2;
+		border-radius: 0;
+		background: #f7f6f2;
+		color: #1d1c19;
+		font:
+			800 10px/1.2 ui-sans-serif,
+			sans-serif;
 	}
 	.guide {
 		padding-top: 28px;

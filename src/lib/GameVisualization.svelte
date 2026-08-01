@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
+	import BallparkField from '$lib/components/BallparkField.svelte';
+	import { fieldProfileForVenue } from '$lib/field-geometry.js';
 	import type { Play } from '$lib/mlb';
 	import {
 		advanceVisualizationState,
@@ -6,17 +9,29 @@
 		latestBattedBall,
 		mapHitToField,
 		mapPitchToZone,
-		strikeZoneRect
+		strikeZoneRect,
+		visualizationStateForGame
 	} from '$lib/visualization.js';
 
 	let {
 		currentPlay,
 		hitHistory = [],
-		live = false
-	}: { currentPlay?: Play; hitHistory?: Play[]; live?: boolean } = $props();
-	let selectedMode = $state<'zone' | 'field'>('zone');
+		live = false,
+		venueId,
+		gamePk,
+		initialMode = 'zone'
+	}: {
+		currentPlay?: Play;
+		hitHistory?: Play[];
+		live?: boolean;
+		venueId?: number;
+		gamePk?: number;
+		initialMode?: 'zone' | 'field';
+	} = $props();
+	let selectedMode = $state<'zone' | 'field'>(untrack(() => initialMode));
 	let handledContactAtBat = $state<number | null>(null);
 	let handledPitchKey = $state('');
+	let handledGamePk = $state(untrack(() => gamePk));
 
 	const pitchEvents = $derived(
 		(currentPlay?.playEvents ?? []).filter(
@@ -52,24 +67,36 @@
 	);
 	const currentContact = $derived(latestBattedBall(currentPlay ? [currentPlay] : []));
 	const lastContact = $derived(currentContact ?? latestBattedBall(hitHistory));
+	const fieldProfile = $derived(fieldProfileForVenue(venueId));
 	const hitPoint = $derived.by(() => {
 		const coordinates = lastContact?.hitData?.coordinates;
-		return coordinates?.coordX !== undefined && coordinates?.coordY !== undefined
-			? mapHitToField(coordinates.coordX, coordinates.coordY)
+		const coordX = coordinates?.coordX;
+		const coordY = coordinates?.coordY;
+		return typeof coordX === 'number' &&
+			Number.isFinite(coordX) &&
+			typeof coordY === 'number' &&
+			Number.isFinite(coordY)
+			? mapHitToField(coordX, coordY)
 			: null;
 	});
 
 	$effect(() => {
+		const mode = untrack(() => selectedMode);
+		const gameState = visualizationStateForGame(
+			{ mode, handledContactAtBat, handledPitchKey, gamePk: handledGamePk },
+			gamePk
+		);
 		const next = advanceVisualizationState(
-			{ mode: selectedMode, handledContactAtBat, handledPitchKey },
+			gameState,
 			currentContact?.play?.about?.atBatIndex,
 			newestPitchKey
 		);
-		if (next.mode !== selectedMode) selectedMode = next.mode;
+		if (next.mode !== mode) selectedMode = next.mode;
 		if (next.handledContactAtBat !== handledContactAtBat) {
 			handledContactAtBat = next.handledContactAtBat;
 		}
 		if (next.handledPitchKey !== handledPitchKey) handledPitchKey = next.handledPitchKey;
+		if (gameState.gamePk !== handledGamePk) handledGamePk = gameState.gamePk;
 	});
 
 	function pitchSummary() {
@@ -199,9 +226,17 @@
 						><span><i class="inplay"></i>In play</span>
 					</div>
 				</div>
+			{:else if lastContact && fieldProfile}
+				<div class="field-view ballpark-view">
+					<BallparkField
+						profile={fieldProfile}
+						hitData={lastContact.hitData}
+						description={lastContact.play?.result?.description ?? ''}
+					/>
+				</div>
 			{:else if lastContact && hitPoint}
 				<div class="field-view">
-					<svg viewBox="0 0 250 220" role="img" aria-label="Estimated batted-ball location">
+					<svg viewBox="0 0 250 220" role="img" aria-label="Batted-ball location">
 						<defs
 							><radialGradient id="grass" cx="50%" cy="85%" r="80%"
 								><stop offset="0" stop-color="#315a3f" /><stop
@@ -232,7 +267,6 @@
 						<circle class="hit-dot" cx={hitPoint.x} cy={hitPoint.y} r="6" />
 						<path class="home-plate" d="M119 204H131L129 210L125 213L121 210Z" />
 					</svg>
-					<span class="estimate-note">Estimated location</span>
 				</div>
 			{:else}
 				<div class="no-contact">No tracked ball in play yet.</div>
@@ -537,16 +571,7 @@
 		opacity: 0;
 		animation: hit-ring 1.6s 0.85s ease-out infinite;
 	}
-	.estimate-note {
-		display: block;
-		margin-top: -6px;
-		color: #7f7f79;
-		text-align: center;
-		font-size: 7px;
-		font-weight: 800;
-		letter-spacing: 0.14em;
-		text-transform: uppercase;
-	}
+
 	.no-contact {
 		color: #85857f;
 		font-size: 10px;

@@ -80,5 +80,28 @@ export const DEMO_HIT_HISTORY = [
 			}
 		],
 		atBatIndex: 106
+	},
+	{
+		result: {
+			event: 'Flyout',
+			description: "Ke'Bryan Hayes flies out to right fielder Cam Smith in foul territory."
+		},
+		about: { atBatIndex: 61, halfInning: 'bottom', inning: 7, isComplete: true },
+		matchup: { batter: { id: 663647, fullName: "Ke'Bryan Hayes" } },
+		playEvents: [
+			{
+				details: { description: 'In play, out(s)', isInPlay: true },
+				hitData: {
+					launchSpeed: 89.3,
+					launchAngle: 47,
+					totalDistance: 278,
+					trajectory: 'fly_ball',
+					hardness: 'medium',
+					location: '9',
+					coordinates: { coordX: 209.18, coordY: 123.58 }
+				}
+			}
+		],
+		atBatIndex: 61
 	}
 ];

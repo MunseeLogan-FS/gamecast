@@ -333,6 +333,7 @@
 
 	<footer>
 		<span>Unofficial Pirates gamecast</span>
+		<span>Locations reconstructed from available MLB tracking data.</span>
 		<a href={resolve('/demo')} data-sveltekit-reload>Tracking demo</a>
 		<section class="fan-section" aria-label="Fans">
 			<span>Fans</span>
