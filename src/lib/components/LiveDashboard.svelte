@@ -158,9 +158,14 @@
 					<p class="section-label">Live field</p>
 					<strong>Pitch & contact tracker</strong>
 				</div>
-				<span>Estimated MLB coordinates</span>
 			</div>
-			<GameVisualization currentPlay={visualizationPlay} {hitHistory} live={isLive(status)} />
+			<GameVisualization
+				currentPlay={visualizationPlay}
+				{hitHistory}
+				live={isLive(status)}
+				gamePk={game.gamePk}
+				venueId={feed?.gameData.venue?.id ?? game.venue?.id}
+			/>
 		</div>
 
 		<div class="lineup-slot"><LineupPanel {boxscore} {away} {home} {activeBatterId} /></div>
@@ -275,16 +280,7 @@
 			sans-serif;
 		text-transform: uppercase;
 	}
-	.tracking-context > span {
-		max-width: 100px;
-		color: #969690;
-		text-align: right;
-		font-size: 7px;
-		font-weight: 800;
-		line-height: 1.4;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-	}
+
 	.due-up {
 		margin: 18px 0;
 		padding: 12px 0;

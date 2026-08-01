@@ -3,6 +3,21 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { DEMO_CURRENT_PLAY, DEMO_HIT_HISTORY } from '../src/lib/demo-data.js';
 import {
+	BALLPARK_PROFILES,
+	PNC_PARK,
+	estimateHitLocation,
+	fieldPointToSvg,
+	fieldProfileForVenue,
+	hitLocationAriaLabel,
+	mlbHitCoordinatesToFeet,
+	wallDistanceAtAngle
+} from '../src/lib/field-geometry.js';
+
+const CURRENT_MLB_VENUE_IDS = [
+	1, 2, 3, 4, 5, 7, 12, 14, 15, 17, 19, 22, 31, 32, 680, 2392, 2394, 2395, 2529, 2602, 2680, 2681,
+	2889, 3289, 3309, 3312, 3313, 4169, 4705, 5325
+];
+import {
 	AT_BAT_REFRESH_MS,
 	BETWEEN_AT_BATS_REFRESH_MS,
 	BETWEEN_INNINGS_REFRESH_MS,
@@ -16,7 +31,8 @@ import {
 	latestBattedBall,
 	mapHitToField,
 	mapPitchToZone,
-	strikeZoneRect
+	strikeZoneRect,
+	visualizationStateForGame
 } from '../src/lib/visualization.js';
 
 test('mobile demo score keeps each team abbreviation grouped with its score', () => {
@@ -296,13 +312,18 @@ test('showcase fixture contains recorded pitch and contact tracking', () => {
 			event.pitchData?.coordinates?.pZ !== undefined
 	);
 	assert.equal(locatedPitches.length, 7);
-	assert.equal(latestBattedBall(DEMO_HIT_HISTORY)?.hitData.coordinates.coordX, 112.28);
+	assert.equal(DEMO_HIT_HISTORY[0].playEvents[0].hitData.coordinates.coordX, 112.28);
+	assert.equal(latestBattedBall(DEMO_HIT_HISTORY)?.hitData.coordinates.coordX, 209.18);
+	assert.match(latestBattedBall(DEMO_HIT_HISTORY)?.play.result.description, /foul territory/);
 	assert.equal(DEMO_CURRENT_PLAY.matchup.batSide.code, 'L');
 });
 
 test('paces live refreshes around the natural game rhythm', () => {
 	const activePlay = { about: { isComplete: false } };
 	const completePlay = { about: { isComplete: true } };
+	assert.equal(AT_BAT_REFRESH_MS, 15_000);
+	assert.equal(BETWEEN_AT_BATS_REFRESH_MS, 30_000);
+	assert.equal(BETWEEN_INNINGS_REFRESH_MS, 60_000);
 	assert.equal(liveRefreshDelay({ inningState: 'Top' }, activePlay), AT_BAT_REFRESH_MS);
 	assert.equal(liveRefreshDelay({ inningState: 'Top' }, completePlay), BETWEEN_AT_BATS_REFRESH_MS);
 	assert.equal(liveRefreshDelay({ inningState: 'Middle' }, activePlay), BETWEEN_INNINGS_REFRESH_MS);
@@ -327,6 +348,22 @@ test('tracking view follows contact, waits between batters, then returns for the
 		'utf8'
 	);
 	assert.match(source, /class="bat-side"/);
+});
+
+test('tracking state resets when the selected game changes', () => {
+	const state = {
+		mode: 'field',
+		handledContactAtBat: 41,
+		handledPitchKey: '41:3',
+		gamePk: 100
+	};
+	assert.equal(visualizationStateForGame(state, 100), state);
+	assert.deepEqual(visualizationStateForGame(state, 101), {
+		mode: 'zone',
+		handledContactAtBat: null,
+		handledPitchKey: '',
+		gamePk: 101
+	});
 });
 
 test('builds a persistent pitch ledger for the current at-bat', async () => {
@@ -461,4 +498,214 @@ test('finds the newest batted ball in a play history', () => {
 test('maps and clamps MLB field coordinates', () => {
 	assert.deepEqual(mapHitToField(112.28, 176.01), { x: 112.28, y: 176.01, clipped: false });
 	assert.deepEqual(mapHitToField(-10, 300), { x: 5, y: 215, clipped: true });
+});
+
+test('both footers carry the single tracking reconstruction note', () => {
+	const routes = [
+		readFileSync(new URL('../src/routes/+page.svelte', import.meta.url), 'utf8'),
+		readFileSync(new URL('../src/routes/demo/+page.svelte', import.meta.url), 'utf8')
+	];
+	for (const source of routes) {
+		assert.equal(
+			(source.match(/Locations reconstructed from available MLB tracking data\./g) ?? []).length,
+			1
+		);
+	}
+});
+
+test('selects the current official PNC Park profile by MLB venue id', () => {
+	assert.equal(fieldProfileForVenue(31), PNC_PARK);
+	assert.equal(fieldProfileForVenue(9999), null);
+	assert.deepEqual(PNC_PARK.dimensions, {
+		leftLine: 325,
+		left: 389,
+		leftCenter: 410,
+		center: 399,
+		rightCenter: 375,
+		rightLine: 320
+	});
+	assert.deepEqual(PNC_PARK.wallHeights, { left: 6, leftCenter: 10, right: 21 });
+	assert.equal(PNC_PARK.wall.length, 10);
+});
+
+test('covers every current MLB home venue with valid physical wall geometry', () => {
+	assert.deepEqual(
+		BALLPARK_PROFILES.map((profile) => profile.venueId).sort((a, b) => a - b),
+		CURRENT_MLB_VENUE_IDS
+	);
+	for (const profile of BALLPARK_PROFILES) {
+		assert.equal(fieldProfileForVenue(profile.venueId), profile);
+		assert.ok(profile.name.length > 2);
+		assert.ok(profile.sources.length > 0);
+		assert.ok(profile.wall.length >= 5);
+		assert.ok(profile.wall[0].angle <= -40);
+		assert.ok(profile.wall.at(-1).angle >= 40);
+		for (let index = 0; index < profile.wall.length; index += 1) {
+			const point = profile.wall[index];
+			assert.ok(point.distance >= 250 && point.distance <= 450);
+			if (index > 0) assert.ok(point.angle > profile.wall[index - 1].angle);
+		}
+	}
+	assert.equal(fieldProfileForVenue(9999), null);
+});
+
+test('preserves current renovations where MLB fieldInfo still exposes legacy values', () => {
+	assert.equal(fieldProfileForVenue(7)?.dimensions.leftLine, 330);
+	assert.equal(fieldProfileForVenue(2394)?.dimensions.center, 412);
+	assert.equal(fieldProfileForVenue(4169)?.dimensions.rightCenter, 387);
+	assert.deepEqual(
+		fieldProfileForVenue(680)?.wall.map(({ distance }) => distance),
+		[331, 378, 401, 381, 326]
+	);
+	assert.deepEqual(
+		fieldProfileForVenue(14)?.wall.map(({ distance }) => distance),
+		[328, 368, 381, 400, 372, 359, 328]
+	);
+});
+
+test('converts MLB spray-chart coordinates to physical feet', () => {
+	assert.deepEqual(mlbHitCoordinatesToFeet(125.42, 198.27), { x: 0, y: 0 });
+	const center = mlbHitCoordinatesToFeet(125.05, 38.69);
+	assert.ok(Math.abs(center.x - -0.925) < 0.001);
+	assert.ok(Math.abs(center.y - 398.95) < 0.001);
+	assert.ok(mlbHitCoordinatesToFeet(90, 100).x < 0);
+	assert.ok(mlbHitCoordinatesToFeet(160, 100).x > 0);
+});
+
+test('projects physical field coordinates into the PNC SVG from home plate', () => {
+	assert.deepEqual(fieldPointToSvg(PNC_PARK, { x: 0, y: 0 }), { x: 125, y: 210 });
+	const center = fieldPointToSvg(PNC_PARK, { x: 0, y: 399 });
+	assert.equal(center.x, 125);
+	assert.ok(center.y >= 8 && center.y <= 20);
+});
+
+test('PNC wall intersections preserve the official line and center distances', () => {
+	assert.ok(Math.abs(wallDistanceAtAngle(PNC_PARK, -45) - 325) < 0.01);
+	assert.ok(Math.abs(wallDistanceAtAngle(PNC_PARK, 0) - 399) < 0.01);
+	assert.ok(Math.abs(wallDistanceAtAngle(PNC_PARK, 45) - 320) < 0.01);
+	const leftFieldMidpoint = wallDistanceAtAngle(PNC_PARK, -40.5);
+	assert.ok(leftFieldMidpoint > 325 && leftFieldMidpoint < 362);
+});
+
+test('hit estimation prioritizes usable tracked distance with MLB spray direction', () => {
+	const estimate = estimateHitLocation(
+		{
+			totalDistance: 405,
+			trajectory: 'fly_ball',
+			coordinates: { coordX: 102, coordY: 80 }
+		},
+		'',
+		PNC_PARK
+	);
+	assert.equal(estimate.source, 'tracked-distance');
+	assert.equal(estimate.distance, 405);
+	assert.ok(estimate.point.x < 0);
+	assert.equal(
+		hitLocationAriaLabel(estimate, 'Home run to left field.', PNC_PARK),
+		'Home run to left field. 405 feet toward left field at PNC Park.'
+	);
+});
+
+test('ground-ball estimation prefers chart position over airborne distance', () => {
+	const estimate = estimateHitLocation(
+		{
+			totalDistance: 3,
+			trajectory: 'ground_ball',
+			coordinates: { coordX: 112.28, coordY: 176.01 }
+		},
+		'Grounded to third.',
+		PNC_PARK
+	);
+	assert.equal(estimate.source, 'chart-distance');
+	assert.ok(estimate.distance > 40);
+	assert.ok(estimate.point.x < 0);
+});
+
+test('tracked fly-ball distance combines with defensive direction when coordinates are absent', () => {
+	const estimate = estimateHitLocation(
+		{ totalDistance: 289, trajectory: 'fly_ball', location: '8', coordinates: {} },
+		'Flies out to center fielder.',
+		PNC_PARK
+	);
+	assert.equal(estimate.source, 'tracked-distance-location');
+	assert.equal(estimate.distance, 289);
+	assert.equal(estimate.angle, 0);
+});
+
+test('caught foul balls use a coarse foul-territory section outside the fair-field line', () => {
+	const estimate = estimateHitLocation(
+		{
+			totalDistance: 278,
+			trajectory: 'fly_ball',
+			location: '9',
+			coordinates: { coordX: 209.18, coordY: 123.58 }
+		},
+		"Ke'Bryan Hayes flies out to right fielder Cam Smith in foul territory.",
+		PNC_PARK
+	);
+	assert.equal(estimate.source, 'foul-territory');
+	assert.equal(estimate.foulTerritory, 'right');
+	assert.ok(estimate.angle > 45);
+	assert.match(
+		hitLocationAriaLabel(
+			estimate,
+			"Ke'Bryan Hayes flies out to right fielder Cam Smith in foul territory.",
+			PNC_PARK
+		),
+		/Caught in right-field foul territory at PNC Park\.$/
+	);
+
+	const ordinaryFoul = estimateHitLocation({}, 'Foul', PNC_PARK);
+	assert.equal(ordinaryFoul.foulTerritory, null);
+});
+
+test('long projected contact remains visible without changing its physical distance', () => {
+	const estimate = estimateHitLocation(
+		{
+			totalDistance: 475,
+			trajectory: 'fly_ball',
+			coordinates: { coordX: 125.42, coordY: 80 }
+		},
+		'Home run to center field.',
+		PNC_PARK
+	);
+	assert.equal(estimate.distance, 475);
+	assert.equal(Math.hypot(estimate.point.x, estimate.point.y), 475);
+	assert.equal(estimate.svg.y, 6);
+	assert.equal(estimate.clipped, true);
+});
+
+test('hit estimation falls through defensive location, description, then generic placement', () => {
+	assert.equal(estimateHitLocation({ location: '9' }, '', PNC_PARK).source, 'defensive-location');
+	assert.equal(
+		estimateHitLocation(
+			{ location: '9', coordinates: { coordX: null, coordY: null } },
+			'',
+			PNC_PARK
+		).source,
+		'defensive-location'
+	);
+	assert.equal(estimateHitLocation({}, 'Fly ball to left field.', PNC_PARK).source, 'description');
+	assert.equal(estimateHitLocation({}, '', PNC_PARK).source, 'fallback');
+});
+
+test('live and demo trackers select a reusable current-ballpark field by venue id', () => {
+	const tracker = readFileSync(
+		new URL('../src/lib/GameVisualization.svelte', import.meta.url),
+		'utf8'
+	);
+	const dashboard = readFileSync(
+		new URL('../src/lib/components/LiveDashboard.svelte', import.meta.url),
+		'utf8'
+	);
+	const demo = readFileSync(new URL('../src/routes/demo/+page.svelte', import.meta.url), 'utf8');
+	assert.match(tracker, /import BallparkField from '\$lib\/components\/BallparkField\.svelte'/);
+	assert.match(tracker, /fieldProfileForVenue\(venueId\)/);
+	assert.match(tracker, /untrack\(\(\) => selectedMode\)/);
+	assert.match(tracker, /<BallparkField/);
+	assert.match(dashboard, /venueId=\{feed\?\.gameData\.venue\?\.id \?\? game\.venue\?\.id\}/);
+	assert.match(demo, /import \{ BALLPARK_PROFILES \} from '\$lib\/field-geometry\.js'/);
+	assert.match(demo, /bind:value=\{selectedVenueId\}/);
+	assert.match(demo, /venueId=\{selectedVenueId\}/);
+	assert.doesNotMatch(`${tracker}\n${dashboard}\n${demo}`, /estimated/i);
 });

@@ -3,9 +3,9 @@ import { buildCurrentVisualizationUrl, buildHitHistoryUrl } from './visualizatio
 export const PIRATES_TEAM_ID = 134;
 export const EASTERN_TIME_ZONE = 'America/New_York';
 export const SCHEDULE_REFRESH_MS = 60_000;
-export const AT_BAT_REFRESH_MS = 1_000;
-export const BETWEEN_AT_BATS_REFRESH_MS = 10_000;
-export const BETWEEN_INNINGS_REFRESH_MS = 15_000;
+export const AT_BAT_REFRESH_MS = 15_000;
+export const BETWEEN_AT_BATS_REFRESH_MS = 30_000;
+export const BETWEEN_INNINGS_REFRESH_MS = 60_000;
 export const PREVIEW_REFRESH_MS = 60_000;
 
 const API_ROOT = 'https://statsapi.mlb.com/api';
@@ -109,7 +109,7 @@ export interface ScheduleGame {
 	doubleHeader?: string;
 	status: GameStatus;
 	teams: { away: ScheduleTeam; home: ScheduleTeam };
-	venue?: { name: string };
+	venue?: { id?: number; name: string };
 	description?: string;
 	seriesDescription?: string;
 	seriesGameNumber?: number;
@@ -231,7 +231,7 @@ export interface GameFeed {
 	gameData: {
 		status: GameStatus;
 		teams: { away: TeamRef; home: TeamRef };
-		venue?: { name: string; location?: { city?: string; stateAbbrev?: string } };
+		venue?: { id?: number; name: string; location?: { city?: string; stateAbbrev?: string } };
 		probablePitchers?: { away?: PersonRef; home?: PersonRef };
 		weather?: { temp?: number; condition?: string; wind?: string };
 		gameInfo?: { attendance?: number; firstPitch?: string };
