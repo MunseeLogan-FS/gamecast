@@ -56,7 +56,7 @@
 	const selectedModel = $derived(
 		models.find((model) => model.key === selectedKey) ?? models.at(-1)
 	);
-	const useThree = $derived(renderMode === 'three' && selectedModel?.result.kind === 'trajectory');
+	const useThree = $derived(renderMode === 'three');
 	const batSideLabel = $derived(
 		batSide?.code?.toUpperCase() === 'L'
 			? 'LHB'
@@ -126,17 +126,21 @@
 			<small>{batSide?.description ?? 'Batter side'}</small>
 		</div>
 	{/if}
-	{#if useThree && selectedModel}
-		{#key selectedModel.key}
-			<ThreePitchTrajectory
-				pitch={selectedModel.event}
-				pitchNumber={selectedModel.index}
-				contextPitches={pitches}
-				compact
-				strikeZoneTop={finiteZoneTop}
-				strikeZoneBottom={finiteZoneBottom}
-			/>
-		{/key}
+	{#if useThree}
+		{#if selectedModel}
+			{#key selectedModel.key}
+				<ThreePitchTrajectory
+					pitch={selectedModel.event}
+					pitchNumber={selectedModel.index}
+					contextPitches={pitches}
+					compact
+					strikeZoneTop={finiteZoneTop}
+					strikeZoneBottom={finiteZoneBottom}
+				/>
+			{/key}
+		{:else}
+			<div class="three-unavailable" role="status">No recorded pitch is available.</div>
+		{/if}
 	{:else}
 		<svg viewBox="0 0 220 260" role="img" aria-label={pitchAriaLabel(selectedModel)}>
 			<defs>
@@ -286,6 +290,14 @@
 	}
 	.pitch-trajectory.three .legend {
 		margin: 8px 0 10px;
+	}
+	.three-unavailable {
+		display: grid;
+		min-height: 460px;
+		place-items: center;
+		color: #ccc;
+		background: #0b0c0b;
+		font-size: 13px;
 	}
 	svg {
 		display: block;

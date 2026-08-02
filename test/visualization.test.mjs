@@ -550,6 +550,16 @@ test('manual pitch selection survives Zone and Contact view remounts', () => {
 	assert.match(trajectorySource, /contextPitches=\{pitches\}/);
 });
 
+test('Three.js mode never falls back to the legacy SVG for incomplete telemetry', () => {
+	const source = readFileSync(
+		new URL('../src/lib/components/PitchTrajectory.svelte', import.meta.url),
+		'utf8'
+	);
+	assert.match(source, /const useThree = \$derived\(renderMode === 'three'\)/);
+	assert.doesNotMatch(source, /renderMode === 'three'\s*&&/);
+	assert.match(source, /\{#if useThree\}[\s\S]*\{:else\}\s*<svg/);
+});
+
 test('finds the newest batted ball in a play history', () => {
 	const oldHit = { coordinates: { coordX: 90, coordY: 80 } };
 	const newHit = { coordinates: { coordX: 120, coordY: 60 } };
