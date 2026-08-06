@@ -4,8 +4,8 @@ export const PIRATES_TEAM_ID = 134;
 export const EASTERN_TIME_ZONE = 'America/New_York';
 export const SCHEDULE_REFRESH_MS = 60_000;
 export const AT_BAT_REFRESH_MS = 1_000;
-export const BETWEEN_AT_BATS_REFRESH_MS = 10_000;
-export const BETWEEN_INNINGS_REFRESH_MS = 15_000;
+export const BETWEEN_AT_BATS_REFRESH_MS = 2_000;
+export const BETWEEN_INNINGS_REFRESH_MS = 5_000;
 export const PREVIEW_REFRESH_MS = 60_000;
 
 const API_ROOT = 'https://statsapi.mlb.com/api';
