@@ -46,16 +46,19 @@
 	const selectedStats = $derived(
 		selectedEntry ? playerSeasonStats(selectedProfile, selectedEntry.entry.kind) : []
 	);
-	const piratesSide = $derived(game.teams.home.team.id === 134 ? 'home' : 'away');
+	const preferredBroadcastSide = $derived(
+		game.teams.home.team.id === 134 ? 'home' : game.teams.away.team.id === 134 ? 'away' : 'home'
+	);
 	const television = $derived(
 		game.broadcasts?.find(
-			(broadcast) => broadcast.homeAway === piratesSide && broadcast.type === 'TV'
+			(broadcast) => broadcast.homeAway === preferredBroadcastSide && broadcast.type === 'TV'
 		)?.name
 	);
 	const radio = $derived(
 		game.broadcasts?.find(
 			(broadcast) =>
-				broadcast.homeAway === piratesSide && ['AM', 'FM', 'Radio'].includes(broadcast.type)
+				broadcast.homeAway === preferredBroadcastSide &&
+				['AM', 'FM', 'Radio'].includes(broadcast.type)
 		)?.name
 	);
 
@@ -354,8 +357,8 @@
 		width: 7px;
 		height: 7px;
 		border-radius: 50%;
-		background: #fdb827;
-		box-shadow: 0 0 0 4px rgba(253, 184, 39, 0.14);
+		background: var(--game-accent, #fdb827);
+		box-shadow: 0 0 0 4px color-mix(in srgb, var(--game-accent, #fdb827) 16%, transparent);
 	}
 	.matchup-hero {
 		min-height: 190px;
@@ -763,8 +766,8 @@
 		height: 72px;
 		display: grid;
 		place-items: center;
-		color: #111;
-		background: #fdb827;
+		color: var(--game-on-accent, #111);
+		background: var(--game-accent, #fdb827);
 		font:
 			900 30px 'Arial Narrow',
 			sans-serif;

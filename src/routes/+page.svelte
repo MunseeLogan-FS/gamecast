@@ -1,11 +1,20 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { pushState, replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import GamePicker from '$lib/components/GamePicker.svelte';
 	import GamePreview from '$lib/components/GamePreview.svelte';
 	import GameScoreboard from '$lib/components/GameScoreboard.svelte';
 	import LiveDashboard from '$lib/components/LiveDashboard.svelte';
 	import OffDayView from '$lib/components/OffDayView.svelte';
 	import { preservePitchTelemetry } from '$lib/visualization.js';
+	import {
+		chooseInitialGame,
+		isPiratesGame,
+		orderTodayGames,
+		preserveOrChooseGame
+	} from '$lib/game-selection';
+	import { themeForGame } from '$lib/team-themes';
 	import {
 		PREVIEW_REFRESH_MS,
 		SCHEDULE_REFRESH_MS,
@@ -14,8 +23,9 @@
 		fetchGameBoxscore,
 		fetchGameFeed,
 		fetchHitHistory,
-		fetchPiratesSchedule,
+		fetchPiratesNextSchedule,
 		fetchSeasonProfiles,
+		fetchTodaySchedule,
 		isLive,
 		isPreview,
 		liveRefreshDelay,
@@ -40,6 +50,9 @@
 	let feedLoading = $state(false);
 	let error = $state('');
 	let lastUpdated = $state<Date | null>(null);
+	let initialRequestedGamePk: number | null = null;
+	let initializedSelection = false;
+	let nextGameLoading = false;
 
 	let scheduleTimer: ReturnType<typeof setInterval> | undefined;
 	let feedTimer: ReturnType<typeof setTimeout> | undefined;
@@ -51,54 +64,84 @@
 	let hitHistoryController: AbortController | undefined;
 
 	const selectedGame = $derived(todayGames.find((game) => game.gamePk === selectedGamePk) ?? null);
+	const selectedTheme = $derived(themeForGame(selectedGame));
 	const status = $derived(feed?.gameData.status ?? selectedGame?.status);
 	const linescore = $derived(feed?.liveData.linescore);
 
-	function pickGame(games: ScheduleGame[]) {
-		const liveGame = games.find((game) => isLive(game.status));
-		if (liveGame) return liveGame;
-		const existing = games.find((game) => game.gamePk === selectedGamePk);
-		if (existing) return existing;
-		const preview = games.find((game) => isPreview(game.status));
-		return preview ?? games[games.length - 1] ?? null;
+	function clearSelectedGameData() {
+		feed = null;
+		boxscore = null;
+		previewProfiles = {};
+		visualizationPlay = undefined;
+		hitHistory = [];
+	}
+
+	function requestedGameFromUrl() {
+		if (typeof window === 'undefined') return null;
+		const value = Number(new URL(window.location.href).searchParams.get('game'));
+		return Number.isSafeInteger(value) && value > 0 ? value : null;
+	}
+
+	function writeGameToUrl(gamePk: number, replace = false) {
+		if (typeof window === 'undefined') return;
+		const url = new URL(window.location.href);
+		url.searchParams.set('game', String(gamePk));
+		const target = `/?${url.searchParams.toString()}` as `/?${string}`;
+		if (replace) replaceState(resolve(target), {});
+		else pushState(resolve(target), {});
+	}
+
+	async function refreshNextPiratesGame(dateKey: string, signal: AbortSignal) {
+		nextGameLoading = true;
+		try {
+			const piratesSchedule = await fetchPiratesNextSchedule(dateKey, signal);
+			const piratesGames = piratesSchedule.dates.flatMap((date) =>
+				date.games.map((game) => ({ ...game, scheduleDate: date.date }))
+			);
+			if (gameDate === dateKey && !todayGames.some(isPiratesGame)) {
+				nextGame = piratesGames.find((game) => game.scheduleDate > dateKey) ?? null;
+			}
+		} catch (requestError) {
+			if ((requestError as Error).name !== 'AbortError' && gameDate === dateKey) nextGame = null;
+		} finally {
+			if (gameDate === dateKey) nextGameLoading = false;
+		}
 	}
 
 	async function refreshSchedule(initial = false) {
 		const newDate = easternDateKey();
 		if (newDate !== gameDate) {
 			gameDate = newDate;
+			nextGame = null;
+			nextGameLoading = false;
 			selectedGamePk = null;
-			feed = null;
-			boxscore = null;
-			previewProfiles = {};
-			visualizationPlay = undefined;
-			hitHistory = [];
+			initializedSelection = false;
+			initialRequestedGamePk = null;
+			clearSelectedGameData();
 		}
 
 		scheduleController?.abort();
 		scheduleController = new AbortController();
 		try {
-			const schedule = await fetchPiratesSchedule(gameDate, scheduleController.signal);
+			const schedule = await fetchTodaySchedule(gameDate, scheduleController.signal);
 			const datedGames = schedule.dates.flatMap((date) =>
 				date.games.map((game) => ({ ...game, scheduleDate: date.date }))
 			);
-			todayGames = datedGames
-				.filter((game) => game.scheduleDate === gameDate)
-				.sort((a, b) => new Date(a.gameDate).getTime() - new Date(b.gameDate).getTime());
-			nextGame = datedGames.find((game) => game.scheduleDate > gameDate) ?? null;
+			todayGames = orderTodayGames(datedGames.filter((game) => game.scheduleDate === gameDate));
 
-			const chosen = pickGame(todayGames);
+			const chosen = initializedSelection
+				? preserveOrChooseGame(todayGames, selectedGamePk)
+				: chooseInitialGame(todayGames, initialRequestedGamePk);
 			if (chosen && chosen.gamePk !== selectedGamePk) {
-				await selectGame(chosen.gamePk);
-			} else if (chosen && isLive(chosen.status)) {
-				void loadHitHistory(chosen.gamePk);
+				await selectGame(chosen.gamePk, true);
 			} else if (!chosen) {
 				selectedGamePk = null;
-				feed = null;
-				boxscore = null;
-				previewProfiles = {};
-				visualizationPlay = undefined;
-				hitHistory = [];
+				clearSelectedGameData();
+			}
+			initializedSelection = true;
+			if (todayGames.some(isPiratesGame)) nextGame = null;
+			else if (!todayGames.length && !nextGame && !nextGameLoading) {
+				void refreshNextPiratesGame(gameDate, scheduleController.signal);
 			}
 			error = '';
 		} catch (requestError) {
@@ -115,15 +158,18 @@
 		feedController = new AbortController();
 		if (showLoader) feedLoading = true;
 		try {
-			feed = await fetchGameFeed(gamePk, feedController.signal);
-			lastUpdated = new Date();
-			error = '';
+			const data = await fetchGameFeed(gamePk, feedController.signal);
+			if (selectedGamePk === gamePk) {
+				feed = data;
+				lastUpdated = new Date();
+				error = '';
+			}
 		} catch (requestError) {
-			if ((requestError as Error).name !== 'AbortError') {
+			if ((requestError as Error).name !== 'AbortError' && selectedGamePk === gamePk) {
 				error = 'The live feed missed a turn. Retrying automatically.';
 			}
 		} finally {
-			feedLoading = false;
+			if (selectedGamePk === gamePk) feedLoading = false;
 		}
 	}
 
@@ -176,7 +222,9 @@
 				);
 			}
 		} catch (requestError) {
-			if ((requestError as Error).name !== 'AbortError') visualizationPlay = undefined;
+			if ((requestError as Error).name !== 'AbortError' && selectedGamePk === gamePk) {
+				visualizationPlay = undefined;
+			}
 		}
 	}
 
@@ -187,12 +235,15 @@
 			const data = await fetchHitHistory(gamePk, hitHistoryController.signal);
 			if (selectedGamePk === gamePk) hitHistory = data.allPlays ?? [];
 		} catch (requestError) {
-			if ((requestError as Error).name !== 'AbortError') hitHistory = [];
+			if ((requestError as Error).name !== 'AbortError' && selectedGamePk === gamePk) {
+				hitHistory = [];
+			}
 		}
 	}
 
 	async function refreshSelectedGameData(gamePk: number, showLoader = false) {
 		await Promise.all([loadFeed(gamePk, showLoader), loadBoxscore(gamePk)]);
+		if (selectedGamePk !== gamePk) return;
 		const currentStatus = feed?.gameData.status ?? selectedGame?.status;
 		if (isPreview(currentStatus)) {
 			visualizationController?.abort();
@@ -225,16 +276,23 @@
 		}, delay);
 	}
 
-	async function selectGame(gamePk: number) {
+	function abortSelectedGameRequests() {
+		feedController?.abort();
+		boxscoreController?.abort();
+		previewProfilesController?.abort();
+		visualizationController?.abort();
+		hitHistoryController?.abort();
+	}
+
+	async function selectGame(gamePk: number, replaceUrl = false) {
+		if (!todayGames.some((game) => game.gamePk === gamePk)) return;
 		if (feedTimer) clearTimeout(feedTimer);
 		if (gamePk !== selectedGamePk) {
-			feed = null;
-			boxscore = null;
-			previewProfiles = {};
-			visualizationPlay = undefined;
-			hitHistory = [];
+			abortSelectedGameRequests();
+			clearSelectedGameData();
 		}
 		selectedGamePk = gamePk;
+		writeGameToUrl(gamePk, replaceUrl);
 		await refreshSelectedGameData(gamePk, true);
 		queueFeedRefresh();
 	}
@@ -255,17 +313,23 @@
 	}
 
 	onMount(() => {
+		initialRequestedGamePk = requestedGameFromUrl();
 		void refreshSchedule(true);
 		scheduleTimer = setInterval(() => void refreshSchedule(), SCHEDULE_REFRESH_MS);
+		const handlePopState = () => {
+			const requested = requestedGameFromUrl();
+			const chosen = chooseInitialGame(todayGames, requested);
+			if (!chosen) return;
+			if (chosen.gamePk !== selectedGamePk) void selectGame(chosen.gamePk, true);
+			else writeGameToUrl(chosen.gamePk, true);
+		};
+		window.addEventListener('popstate', handlePopState);
 		return () => {
+			window.removeEventListener('popstate', handlePopState);
 			if (scheduleTimer) clearInterval(scheduleTimer);
 			if (feedTimer) clearTimeout(feedTimer);
 			scheduleController?.abort();
-			feedController?.abort();
-			boxscoreController?.abort();
-			previewProfilesController?.abort();
-			visualizationController?.abort();
-			hitHistoryController?.abort();
+			abortSelectedGameRequests();
 		};
 	});
 </script>
@@ -279,7 +343,10 @@
 	<meta name="theme-color" content="#111111" />
 </svelte:head>
 
-<div class="app-shell">
+<div
+	class="app-shell"
+	style={`--game-primary:${selectedTheme.primary};--game-accent:${selectedTheme.accent};--game-on-accent:${selectedTheme.onAccent};--game-muted:${selectedTheme.muted}`}
+>
 	<header class="topbar">
 		<div class="brand" aria-label="Pirates Gamecast">
 			<span class="brand-mark">P</span>
@@ -304,23 +371,14 @@
 				<strong>Checking today’s card</strong>
 				<span>Connecting to MLB Stats</span>
 			</section>
-		{:else if !selectedGame}
-			<OffDayView {nextGame} />
 		{:else}
-			{#if todayGames.length > 1}
-				<nav class="game-picker" aria-label="Today's Pirates games">
-					{#each todayGames as game, index (game.gamePk)}
-						<button
-							class:active={game.gamePk === selectedGamePk}
-							onclick={() => selectGame(game.gamePk)}
-						>
-							Game {game.gameNumber ?? index + 1}<span>{game.status.detailedState}</span>
-						</button>
-					{/each}
-				</nav>
+			{#if todayGames.length}
+				<GamePicker games={todayGames} {selectedGamePk} onSelect={selectGame} />
 			{/if}
 
-			{#if isPreview(status)}
+			{#if !selectedGame}
+				<OffDayView {nextGame} />
+			{:else if isPreview(status)}
 				<GamePreview game={selectedGame} {feed} {boxscore} profiles={previewProfiles} />
 			{:else}
 				<GameScoreboard game={selectedGame} {feed} />
@@ -373,11 +431,11 @@
 		font: inherit;
 	}
 	:global(::selection) {
-		color: #111;
-		background: #fdb827;
+		color: var(--game-on-accent, #111);
+		background: var(--game-accent, #fdb827);
 	}
 	:global(:focus-visible) {
-		outline: 3px solid #fdb827;
+		outline: 3px solid var(--game-accent, #fdb827);
 		outline-offset: 3px;
 	}
 	.app-shell {
@@ -391,7 +449,7 @@
 		align-items: center;
 		color: white;
 		background: #111;
-		border-bottom: 4px solid #fdb827;
+		border-bottom: 4px solid var(--game-accent, #fdb827);
 	}
 	.brand {
 		display: flex;
@@ -526,34 +584,6 @@
 		margin-top: 8px;
 		color: #777;
 		font-size: 11px;
-	}
-	.game-picker {
-		display: flex;
-		gap: 8px;
-		margin-bottom: 12px;
-	}
-	.game-picker button {
-		min-width: 120px;
-		padding: 9px 13px;
-		text-align: left;
-		color: #666;
-		background: #e7e7e4;
-		border: 1px solid #d6d6d1;
-		cursor: pointer;
-		font-size: 10px;
-		font-weight: 800;
-		text-transform: uppercase;
-	}
-	.game-picker button span {
-		display: block;
-		margin-top: 3px;
-		font-size: 8px;
-		font-weight: 600;
-	}
-	.game-picker button.active {
-		color: #111;
-		background: #fdb827;
-		border-color: #e1a00b;
 	}
 	footer {
 		max-width: 1380px;

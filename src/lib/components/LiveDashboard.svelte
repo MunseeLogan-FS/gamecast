@@ -54,9 +54,11 @@
 			.filter((play) => play.about?.isComplete && (!scoringOnly || play.about.isScoringPlay))
 			.reverse()
 	);
-	const piratesAreHome = $derived(home?.id === 134);
-	const piratesScore = $derived(piratesAreHome ? homeScore : awayScore);
-	const opponentScore = $derived(piratesAreHome ? awayScore : homeScore);
+	const featuredSide = $derived(away?.id === 134 ? 'away' : home?.id === 134 ? 'home' : 'home');
+	const featuredTeam = $derived(featuredSide === 'home' ? home : away);
+	const otherTeam = $derived(featuredSide === 'home' ? away : home);
+	const featuredScore = $derived(featuredSide === 'home' ? homeScore : awayScore);
+	const otherScore = $derived(featuredSide === 'home' ? awayScore : homeScore);
 
 	$effect(() => {
 		const pitchCount = atBatPitches.length;
@@ -145,10 +147,10 @@
 					<p>{latestPlay.result.description}</p>
 				</div>
 			{/if}
-			<div class="pirates-pulse">
-				<span>Pirates</span><strong>{piratesScore}</strong><span>Opponent</span><strong
-					>{opponentScore}</strong
-				>
+			<div class="game-pulse">
+				<span>{shortTeam(featuredTeam)}</span><strong>{featuredScore}</strong><span
+					>{shortTeam(otherTeam)}</span
+				><strong>{otherScore}</strong>
 			</div>
 		</aside>
 
@@ -463,7 +465,7 @@
 		font-size: 13px;
 		line-height: 1.55;
 	}
-	.pirates-pulse {
+	.game-pulse {
 		margin-top: auto;
 		padding-top: 15px;
 		display: grid;
@@ -472,12 +474,12 @@
 		align-items: center;
 		border-top: 1px solid #ecece8;
 	}
-	.pirates-pulse span {
+	.game-pulse span {
 		color: #777;
 		font-size: 9px;
 		text-transform: uppercase;
 	}
-	.pirates-pulse strong {
+	.game-pulse strong {
 		font-size: 16px;
 	}
 	.panel-heading {

@@ -269,7 +269,7 @@ test('requests preview profiles only for probable starters and posted lineups', 
 test('preview replaces rather than empties the live dashboard', () => {
 	const home = readFileSync(new URL('../src/routes/+page.svelte', import.meta.url), 'utf8');
 	assert.match(home, /import GamePreview from '\$lib\/components\/GamePreview\.svelte'/);
-	assert.match(home, /\{#if isPreview\(status\)\}\s*<GamePreview/);
+	assert.match(home, /\{:(?:else )?if isPreview\(status\)\}\s*<GamePreview/);
 
 	const preview = readFileSync(
 		new URL('../src/lib/components/GamePreview.svelte', import.meta.url),
@@ -322,9 +322,9 @@ test('showcase fixture contains recorded pitch and contact tracking', () => {
 test('paces live refreshes around the natural game rhythm', () => {
 	const activePlay = { about: { isComplete: false } };
 	const completePlay = { about: { isComplete: true } };
-	assert.equal(AT_BAT_REFRESH_MS, 15_000);
-	assert.equal(BETWEEN_AT_BATS_REFRESH_MS, 30_000);
-	assert.equal(BETWEEN_INNINGS_REFRESH_MS, 60_000);
+	assert.equal(AT_BAT_REFRESH_MS, 1_000);
+	assert.equal(BETWEEN_AT_BATS_REFRESH_MS, 2_000);
+	assert.equal(BETWEEN_INNINGS_REFRESH_MS, 5_000);
 	assert.equal(liveRefreshDelay({ inningState: 'Top' }, activePlay), AT_BAT_REFRESH_MS);
 	assert.equal(liveRefreshDelay({ inningState: 'Top' }, completePlay), BETWEEN_AT_BATS_REFRESH_MS);
 	assert.equal(liveRefreshDelay({ inningState: 'Middle' }, activePlay), BETWEEN_INNINGS_REFRESH_MS);

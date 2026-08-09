@@ -233,8 +233,8 @@
 		transform: rotate(45deg);
 	}
 	.diamond i.occupied {
-		background: #fdb827;
-		border-color: #c98f08;
+		background: var(--game-accent, #fdb827);
+		border-color: var(--game-primary, #c98f08);
 	}
 	.diamond .second {
 		left: 16px;
@@ -278,7 +278,7 @@
 	}
 	.line-table .total {
 		color: #111;
-		background: #fff9e9;
+		background: var(--game-muted, #fff9e9);
 		font-weight: 900;
 	}
 	@keyframes pulse {

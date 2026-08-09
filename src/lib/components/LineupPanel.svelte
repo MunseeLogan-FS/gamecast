@@ -272,16 +272,16 @@
 	}
 	li.at-bat button,
 	li.at-bat button:hover {
-		background: #fff4cf;
-		box-shadow: inset 4px 0 #fdb827;
+		background: var(--game-muted, #fff4cf);
+		box-shadow: inset 4px 0 var(--game-accent, #fdb827);
 	}
 	li.at-bat .order {
 		width: 24px;
 		height: 24px;
 		display: grid;
 		place-items: center;
-		color: #111;
-		background: #fdb827;
+		color: var(--game-on-accent, #111);
+		background: var(--game-accent, #fdb827);
 	}
 	li.at-bat .player-name strong {
 		font-weight: 900;
@@ -304,8 +304,8 @@
 		height: 20px;
 		display: grid;
 		place-items: center;
-		color: #111;
-		background: #fdb827;
+		color: var(--game-on-accent, #111);
+		background: var(--game-accent, #fdb827);
 	}
 	.player-name {
 		min-width: 0;
@@ -409,8 +409,8 @@
 		height: 58px;
 		display: grid;
 		place-items: center;
-		color: #111;
-		background: #fdb827;
+		color: var(--game-on-accent, #111);
+		background: var(--game-accent, #fdb827);
 		font:
 			900 22px 'Arial Narrow',
 			sans-serif;

@@ -440,7 +440,17 @@ export function addDays(dateKey: string, days: number) {
 	return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
 }
 
-export async function fetchPiratesSchedule(dateKey: string, signal?: AbortSignal) {
+export function buildTodayScheduleUrl(root: string, dateKey: string) {
+	const params = new URLSearchParams({
+		sportId: '1',
+		startDate: dateKey,
+		endDate: dateKey,
+		hydrate: 'team,linescore,probablePitcher,venue,weather,seriesStatus,broadcasts'
+	});
+	return `${root}/v1/schedule?${params}`;
+}
+
+export function buildPiratesNextScheduleUrl(root: string, dateKey: string) {
 	const params = new URLSearchParams({
 		sportId: '1',
 		teamId: String(PIRATES_TEAM_ID),
@@ -448,9 +458,26 @@ export async function fetchPiratesSchedule(dateKey: string, signal?: AbortSignal
 		endDate: addDays(dateKey, 7),
 		hydrate: 'team,linescore,probablePitcher,venue,weather,seriesStatus,broadcasts'
 	});
-	const response = await fetch(`${API_ROOT}/v1/schedule?${params}`, { signal });
+	return `${root}/v1/schedule?${params}`;
+}
+
+async function fetchSchedule(url: string, signal?: AbortSignal) {
+	const response = await fetch(url, { signal });
 	if (!response.ok) throw new Error(`MLB schedule request failed (${response.status})`);
 	return (await response.json()) as ScheduleResponse;
+}
+
+export function fetchTodaySchedule(dateKey: string, signal?: AbortSignal) {
+	return fetchSchedule(buildTodayScheduleUrl(API_ROOT, dateKey), signal);
+}
+
+export function fetchPiratesNextSchedule(dateKey: string, signal?: AbortSignal) {
+	return fetchSchedule(buildPiratesNextScheduleUrl(API_ROOT, dateKey), signal);
+}
+
+/** @deprecated Use fetchPiratesNextSchedule. */
+export function fetchPiratesSchedule(dateKey: string, signal?: AbortSignal) {
+	return fetchPiratesNextSchedule(dateKey, signal);
 }
 
 export async function fetchGameFeed(gamePk: number, signal?: AbortSignal) {
