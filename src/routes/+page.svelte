@@ -15,6 +15,7 @@
 		preserveOrChooseGame
 	} from '$lib/game-selection';
 	import { themeForGame } from '$lib/team-themes';
+	import { HIGHLIGHT_REFRESH_MS, fetchGameHighlights, type GameHighlight } from '$lib/highlights';
 	import {
 		PREVIEW_REFRESH_MS,
 		SCHEDULE_REFRESH_MS,
@@ -46,6 +47,7 @@
 	let previewProfiles = $state<Record<number, SeasonPlayerProfile>>({});
 	let visualizationPlay = $state<Play | undefined>();
 	let hitHistory = $state<Play[]>([]);
+	let highlights = $state<GameHighlight[]>([]);
 	let loading = $state(true);
 	let feedLoading = $state(false);
 	let error = $state('');
@@ -56,12 +58,15 @@
 
 	let scheduleTimer: ReturnType<typeof setInterval> | undefined;
 	let feedTimer: ReturnType<typeof setTimeout> | undefined;
+	let highlightsTimer: ReturnType<typeof setTimeout> | undefined;
 	let scheduleController: AbortController | undefined;
 	let feedController: AbortController | undefined;
 	let boxscoreController: AbortController | undefined;
 	let previewProfilesController: AbortController | undefined;
 	let visualizationController: AbortController | undefined;
 	let hitHistoryController: AbortController | undefined;
+	let highlightsController: AbortController | undefined;
+	let highlightGamePkLoaded: number | null = null;
 
 	const selectedGame = $derived(todayGames.find((game) => game.gamePk === selectedGamePk) ?? null);
 	const selectedTheme = $derived(themeForGame(selectedGame));
@@ -74,6 +79,8 @@
 		previewProfiles = {};
 		visualizationPlay = undefined;
 		hitHistory = [];
+		highlights = [];
+		highlightGamePkLoaded = null;
 	}
 
 	function requestedGameFromUrl() {
@@ -241,6 +248,19 @@
 		}
 	}
 
+	async function loadHighlights(gamePk: number) {
+		highlightsController?.abort();
+		highlightsController = new AbortController();
+		try {
+			const data = await fetchGameHighlights(gamePk, highlightsController.signal);
+			if (selectedGamePk === gamePk) highlights = data;
+		} catch (requestError) {
+			if ((requestError as Error).name === 'AbortError') return;
+		} finally {
+			if (selectedGamePk === gamePk) highlightGamePkLoaded = gamePk;
+		}
+	}
+
 	async function refreshSelectedGameData(gamePk: number, showLoader = false) {
 		await Promise.all([loadFeed(gamePk, showLoader), loadBoxscore(gamePk)]);
 		if (selectedGamePk !== gamePk) return;
@@ -273,7 +293,25 @@
 			if (selectedGamePk !== gamePk) return;
 			await refreshSelectedGameData(gamePk);
 			queueFeedRefresh();
+			const refreshedStatus = feed?.gameData.status ?? selectedGame?.status;
+			if (!isPreview(refreshedStatus) && highlightGamePkLoaded !== gamePk) {
+				queueHighlightRefresh();
+				void loadHighlights(gamePk);
+			}
 		}, delay);
+	}
+
+	function queueHighlightRefresh() {
+		if (highlightsTimer) clearTimeout(highlightsTimer);
+		if (!selectedGamePk) return;
+		const currentStatus = feed?.gameData.status ?? selectedGame?.status;
+		if (!isLive(currentStatus)) return;
+		const gamePk = selectedGamePk;
+		highlightsTimer = setTimeout(async () => {
+			if (selectedGamePk !== gamePk) return;
+			await loadHighlights(gamePk);
+			queueHighlightRefresh();
+		}, HIGHLIGHT_REFRESH_MS);
 	}
 
 	function abortSelectedGameRequests() {
@@ -282,11 +320,13 @@
 		previewProfilesController?.abort();
 		visualizationController?.abort();
 		hitHistoryController?.abort();
+		highlightsController?.abort();
 	}
 
 	async function selectGame(gamePk: number, replaceUrl = false) {
 		if (!todayGames.some((game) => game.gamePk === gamePk)) return;
 		if (feedTimer) clearTimeout(feedTimer);
+		if (highlightsTimer) clearTimeout(highlightsTimer);
 		if (gamePk !== selectedGamePk) {
 			abortSelectedGameRequests();
 			clearSelectedGameData();
@@ -295,12 +335,21 @@
 		writeGameToUrl(gamePk, replaceUrl);
 		await refreshSelectedGameData(gamePk, true);
 		queueFeedRefresh();
+		queueHighlightRefresh();
+		const currentStatus = feed?.gameData.status ?? selectedGame?.status;
+		if (!isPreview(currentStatus)) void loadHighlights(gamePk);
 	}
 
 	async function manualRefresh() {
 		await refreshSchedule();
-		if (selectedGamePk) await refreshSelectedGameData(selectedGamePk);
-		queueFeedRefresh();
+		if (selectedGamePk) {
+			const gamePk = selectedGamePk;
+			await refreshSelectedGameData(gamePk);
+			queueFeedRefresh();
+			queueHighlightRefresh();
+			const currentStatus = feed?.gameData.status ?? selectedGame?.status;
+			if (!isPreview(currentStatus)) void loadHighlights(gamePk);
+		}
 	}
 
 	function formatToday(value: string) {
@@ -328,6 +377,7 @@
 			window.removeEventListener('popstate', handlePopState);
 			if (scheduleTimer) clearInterval(scheduleTimer);
 			if (feedTimer) clearTimeout(feedTimer);
+			if (highlightsTimer) clearTimeout(highlightsTimer);
 			scheduleController?.abort();
 			abortSelectedGameRequests();
 		};
@@ -388,6 +438,7 @@
 					{boxscore}
 					{visualizationPlay}
 					{hitHistory}
+					{highlights}
 					{feedLoading}
 					onRefresh={manualRefresh}
 				/>
@@ -398,6 +449,7 @@
 	<footer>
 		<span>Unofficial Pirates gamecast</span>
 		<span>Locations reconstructed from available MLB tracking data.</span>
+		<span>Highlights © MLB Advanced Media; availability varies.</span>
 		<a href={resolve('/demo')} data-sveltekit-reload>Tracking demo</a>
 		<section class="fan-section" aria-label="Fans">
 			<span>Fans</span>

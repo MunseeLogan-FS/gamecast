@@ -78,7 +78,9 @@ const LIVE_FIELDS = [
 	'isComplete',
 	'isScoringPlay',
 	'matchup',
-	'count'
+	'count',
+	'playEvents',
+	'playId'
 ].join(',');
 
 export interface TeamRef {
@@ -147,6 +149,7 @@ export interface HitData {
 }
 
 export interface PitchEvent {
+	playId?: string;
 	details?: {
 		description?: string;
 		code?: string;

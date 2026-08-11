@@ -2,6 +2,8 @@
 	import { tick } from 'svelte';
 	import GameVisualization from '$lib/GameVisualization.svelte';
 	import LineupPanel from '$lib/components/LineupPanel.svelte';
+	import PlayHighlight from '$lib/components/PlayHighlight.svelte';
+	import { matchHighlightsToPlays, type GameHighlight } from '$lib/highlights';
 	import { currentAtBatPitches } from '$lib/visualization.js';
 	import {
 		isFinal,
@@ -20,6 +22,7 @@
 		boxscore,
 		visualizationPlay,
 		hitHistory,
+		highlights,
 		feedLoading,
 		onRefresh
 	}: {
@@ -28,11 +31,13 @@
 		boxscore: GameBoxscore | null;
 		visualizationPlay?: Play;
 		hitHistory: Play[];
+		highlights: GameHighlight[];
 		feedLoading: boolean;
 		onRefresh: () => void | Promise<void>;
 	} = $props();
 
-	let scoringOnly = $state(false);
+	let playFilter = $state<'all' | 'scoring' | 'highlights'>('all');
+	let openHighlightKey = $state<string | null>(null);
 	let pitchLedger = $state<HTMLOListElement>();
 
 	const status = $derived<GameStatus>(feed?.gameData.status ?? game.status);
@@ -48,10 +53,18 @@
 	const awayScore = $derived(linescore?.teams?.away?.runs ?? game.teams.away.score ?? 0);
 	const homeScore = $derived(linescore?.teams?.home?.runs ?? game.teams.home.score ?? 0);
 	const plays = $derived(feed?.liveData.plays.allPlays ?? []);
+	const matchedHighlights = $derived(matchHighlightsToPlays(highlights, plays));
 	const latestPlay = $derived(plays.length ? plays[plays.length - 1] : null);
 	const visiblePlays = $derived(
 		[...plays]
-			.filter((play) => play.about?.isComplete && (!scoringOnly || play.about.isScoringPlay))
+			.filter(
+				(play) =>
+					play.about?.isComplete &&
+					(playFilter === 'all' ||
+						(playFilter === 'scoring' && play.about.isScoringPlay) ||
+						(playFilter === 'highlights' &&
+							!!matchedHighlights.byAtBatIndex[play.about.atBatIndex]?.length))
+			)
 			.reverse()
 	);
 	const featuredSide = $derived(away?.id === 134 ? 'away' : home?.id === 134 ? 'home' : 'home');
@@ -181,8 +194,16 @@
 			</div>
 			<div class="panel-actions">
 				<div class="filter-switch" role="group" aria-label="Filter plays">
-					<button class:active={!scoringOnly} onclick={() => (scoringOnly = false)}>All</button>
-					<button class:active={scoringOnly} onclick={() => (scoringOnly = true)}>Scoring</button>
+					<button class:active={playFilter === 'all'} onclick={() => (playFilter = 'all')}
+						>All</button
+					>
+					<button class:active={playFilter === 'scoring'} onclick={() => (playFilter = 'scoring')}
+						>Scoring</button
+					>
+					<button
+						class:active={playFilter === 'highlights'}
+						onclick={() => (playFilter = 'highlights')}>Highlights</button
+					>
 				</div>
 				<button
 					class="refresh"
@@ -195,7 +216,7 @@
 
 		{#if feedLoading && !feed}
 			<div class="plays-empty">Loading the scorebook…</div>
-		{:else if visiblePlays.length}
+		{:else if visiblePlays.length || (playFilter !== 'scoring' && matchedHighlights.standalone.length)}
 			<div class="plays" aria-live="polite">
 				{#each visiblePlays as play (play.about.atBatIndex)}
 					<article class:scoring={play.about.isScoringPlay} class="play-row">
@@ -213,12 +234,45 @@
 							<span>{shortTeam(away)} {play.result.awayScore ?? awayScore}</span>
 							<span>{shortTeam(home)} {play.result.homeScore ?? homeScore}</span>
 						</div>
+						{#if matchedHighlights.byAtBatIndex[play.about.atBatIndex]?.length}
+							<div class="play-highlights">
+								{#each matchedHighlights.byAtBatIndex[play.about.atBatIndex] as highlight (highlight.key)}
+									<PlayHighlight
+										{highlight}
+										open={openHighlightKey === highlight.key}
+										onToggle={() =>
+											(openHighlightKey =
+												openHighlightKey === highlight.key ? null : highlight.key)}
+									/>
+								{/each}
+							</div>
+						{/if}
 					</article>
 				{/each}
+				{#if playFilter !== 'scoring' && matchedHighlights.standalone.length}
+					<section class="standalone-highlights" aria-labelledby="more-highlights-heading">
+						<div>
+							<p class="section-label">Video</p>
+							<h2 id="more-highlights-heading">More game highlights</h2>
+						</div>
+						{#each matchedHighlights.standalone as highlight (highlight.key)}
+							<PlayHighlight
+								{highlight}
+								open={openHighlightKey === highlight.key}
+								onToggle={() =>
+									(openHighlightKey = openHighlightKey === highlight.key ? null : highlight.key)}
+							/>
+						{/each}
+					</section>
+				{/if}
 			</div>
 		{:else}
 			<div class="plays-empty">
-				{scoringOnly ? 'No scoring plays yet.' : 'The scorebook opens at first pitch.'}
+				{playFilter === 'scoring'
+					? 'No scoring plays yet.'
+					: playFilter === 'highlights'
+						? 'No highlights have been published yet.'
+						: 'The scorebook opens at first pitch.'}
 			</div>
 		{/if}
 	</div>
@@ -592,6 +646,22 @@
 	.play-score span + span {
 		margin-top: 5px;
 	}
+	.play-highlights {
+		grid-column: 1 / -1;
+		min-width: 0;
+	}
+	.standalone-highlights {
+		padding: 20px 72px 24px;
+		border-top: 4px solid #edede8;
+		background: #fafaf7;
+	}
+	.standalone-highlights h2 {
+		margin: 0 0 12px;
+		font:
+			850 18px/1 'Arial Narrow',
+			sans-serif;
+		text-transform: uppercase;
+	}
 	.plays-empty {
 		min-height: 240px;
 		display: grid;
@@ -645,6 +715,9 @@
 		}
 		.play-score span {
 			font-size: 8px;
+		}
+		.standalone-highlights {
+			padding: 18px 12px;
 		}
 		.filter-switch button {
 			padding: 7px 8px;
