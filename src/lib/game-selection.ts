@@ -39,6 +39,17 @@ export function orderTodayGames(games: ScheduleGame[]) {
 	});
 }
 
+export function activeSlateDate(
+	currentDate: string,
+	games: Array<ScheduleGame & { scheduleDate?: string }>
+) {
+	const priorLiveDates = games
+		.filter((game) => game.scheduleDate && game.scheduleDate < currentDate && isLive(game.status))
+		.map((game) => game.scheduleDate as string)
+		.sort();
+	return priorLiveDates.at(-1) ?? currentDate;
+}
+
 function preferredGame(games: ScheduleGame[]) {
 	const ordered = orderTodayGames(games);
 	const pirates = ordered.filter(isPiratesGame);

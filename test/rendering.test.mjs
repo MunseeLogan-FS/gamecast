@@ -8,6 +8,8 @@ let render;
 let GameVisualization;
 let PitchTrajectory;
 let ThreePitchTrajectory;
+let ThreeHitFlight;
+let PNC_PARK;
 let DEMO_CURRENT_PLAY;
 let DEMO_HIT_HISTORY;
 
@@ -21,6 +23,10 @@ before(async () => {
 	({ default: ThreePitchTrajectory } = await vite.ssrLoadModule(
 		'/src/lib/components/ThreePitchTrajectory.svelte'
 	));
+	({ default: ThreeHitFlight } = await vite.ssrLoadModule(
+		'/src/lib/components/ThreeHitFlight.svelte'
+	));
+	({ PNC_PARK } = await vite.ssrLoadModule('/src/lib/field-geometry.js'));
 	({ DEMO_CURRENT_PLAY, DEMO_HIT_HISTORY } = await vite.ssrLoadModule('/src/lib/demo-data.js'));
 });
 
@@ -46,6 +52,36 @@ test('renders a current ballpark profile and the unknown-venue fallback', () => 
 	assert.match(pnc, /Current field dimensions/);
 	assert.match(fallback, /aria-label="Batted-ball location"/);
 	assert.doesNotMatch(fallback, /Current field dimensions/);
+});
+
+test('renders a projected Three.js flight over the selected custom ballpark', () => {
+	const contact = DEMO_HIT_HISTORY.at(-1);
+	const hitEvent = contact.playEvents.findLast((event) => event.hitData);
+	const body = render(ThreeHitFlight, {
+		props: {
+			profile: PNC_PARK,
+			hitData: hitEvent.hitData,
+			description: contact.result.description,
+			resultEvent: contact.result.event,
+			resultEventType: contact.result.eventType
+		}
+	}).body;
+	assert.match(body, /aria-label="Projected batted-ball flight at PNC Park/);
+	assert.match(body, /data-flight-kind="flight"/);
+	assert.match(body, />Projected flight</);
+	assert.match(body, />Hit</);
+	assert.match(body, />PNC Park</);
+	assert.match(body, /Replay flight/);
+});
+
+test('keeps the custom field but draws no false route while destination data is pending', () => {
+	const body = render(ThreeHitFlight, {
+		props: { profile: PNC_PARK, hitData: { trajectory: 'fly_ball' }, description: '' }
+	}).body;
+	assert.match(body, /data-flight-kind="unavailable"/);
+	assert.match(body, />PNC Park</);
+	assert.match(body, /Tracking batted ball/);
+	assert.doesNotMatch(body, /Replay flight/);
 });
 
 test('unknown-venue fallback rejects null batted-ball coordinates', () => {

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { DEMO_CURRENT_PLAY, DEMO_HIT_HISTORY } from '../src/lib/demo-data.js';
+import { wallHeightAt, wallSurfaceAt } from '../src/lib/ballpark-appearance.js';
 import {
 	BALLPARK_PROFILES,
 	PNC_PARK,
@@ -314,8 +315,17 @@ test('showcase fixture contains recorded pitch and contact tracking', () => {
 	);
 	assert.equal(locatedPitches.length, 7);
 	assert.equal(DEMO_HIT_HISTORY[0].playEvents[0].hitData.coordinates.coordX, 112.28);
-	assert.equal(latestBattedBall(DEMO_HIT_HISTORY)?.hitData.coordinates.coordX, 209.18);
-	assert.match(latestBattedBall(DEMO_HIT_HISTORY)?.play.result.description, /foul territory/);
+	const showcaseContact = latestBattedBall(DEMO_HIT_HISTORY);
+	assert.equal(showcaseContact?.play.result.event, 'Double');
+	assert.equal(showcaseContact?.hitData.location, '8');
+	assert.equal(showcaseContact?.hitData.trajectory, 'line_drive');
+	assert.match(showcaseContact?.play.result.description, /center field/);
+	const centerFieldPoint = mlbHitCoordinatesToFeet(
+		showcaseContact?.hitData.coordinates.coordX,
+		showcaseContact?.hitData.coordinates.coordY
+	);
+	assert.ok(Math.abs(centerFieldPoint.x) < 2);
+	assert.ok(centerFieldPoint.y > 350);
 	assert.equal(DEMO_CURRENT_PLAY.matchup.batSide.code, 'L');
 });
 
@@ -602,6 +612,10 @@ test('selects the current official PNC Park profile by MLB venue id', () => {
 	});
 	assert.deepEqual(PNC_PARK.wallHeights, { left: 6, leftCenter: 10, right: 21 });
 	assert.equal(PNC_PARK.wall.length, 10);
+	assert.deepEqual(
+		PNC_PARK.wall.map(({ height }) => height),
+		[6, 6, 6, 10, 10, 8, 8, 21, 21, 21]
+	);
 });
 
 test('covers every current MLB home venue with valid physical wall geometry', () => {
@@ -614,6 +628,9 @@ test('covers every current MLB home venue with valid physical wall geometry', ()
 		assert.ok(profile.name.length > 2);
 		assert.ok(profile.sources.length > 0);
 		assert.ok(profile.wall.length >= 5);
+		assert.match(profile.appearance.grass, /^#[0-9a-f]{6}$/i);
+		assert.match(profile.appearance.wall, /^#[0-9a-f]{6}$/i);
+		assert.ok(profile.appearance.defaultWallHeight >= 5);
 		assert.ok(profile.wall[0].angle <= -40);
 		assert.ok(profile.wall.at(-1).angle >= 40);
 		for (let index = 0; index < profile.wall.length; index += 1) {
@@ -623,6 +640,48 @@ test('covers every current MLB home venue with valid physical wall geometry', ()
 		}
 	}
 	assert.equal(fieldProfileForVenue(9999), null);
+});
+
+test('keeps distinctive wall heights and materials in the Three.js park profiles', () => {
+	const fenway = fieldProfileForVenue(3);
+	const wrigley = fieldProfileForVenue(17);
+	const houston = fieldProfileForVenue(2392);
+	const oracle = fieldProfileForVenue(2395);
+	const rogers = fieldProfileForVenue(14);
+	const coors = fieldProfileForVenue(19);
+	const cincinnati = fieldProfileForVenue(2602);
+	const philadelphia = fieldProfileForVenue(2681);
+	const minnesota = fieldProfileForVenue(3312);
+	const miami = fieldProfileForVenue(4169);
+	const atlanta = fieldProfileForVenue(4705);
+	assert.equal(wallHeightAt({ angle: -40 }, fenway.appearance), 37);
+	assert.equal(wallHeightAt({ angle: 0 }, fenway.appearance), 17);
+	assert.equal(wallSurfaceAt(30, wrigley.appearance).material, 'ivy');
+	assert.equal(wallHeightAt({ angle: -30 }, houston.appearance), 19);
+	assert.equal(wallSurfaceAt(-30, houston.appearance).material, 'padded');
+	assert.equal(wallHeightAt({ angle: 36 }, oracle.appearance), 24);
+	assert.equal(wallHeightAt({ angle: 0 }, rogers.appearance), 8);
+	assert.equal(wallHeightAt({ angle: -45 }, rogers.appearance), 14.33);
+	assert.equal(wallHeightAt({ angle: 35 }, coors.appearance), 14);
+	assert.equal(wallHeightAt({ angle: -35 }, cincinnati.appearance), 12);
+	assert.equal(wallHeightAt({ angle: 0 }, philadelphia.appearance), 6);
+	assert.equal(wallHeightAt({ angle: 24 }, minnesota.appearance), 23);
+	assert.equal(wallHeightAt({ angle: 25 }, miami.appearance), 12);
+	assert.equal(wallHeightAt({ angle: 40 }, atlanta.appearance), 16);
+	assert.equal(wallSurfaceAt(40, atlanta.appearance).material, 'brick');
+	assert.equal(wallHeightAt({ angle: 0, height: 21 }, fenway.appearance), 21);
+});
+
+test('anchors visible foul poles to both custom-field wall endpoints', () => {
+	const renderer = readFileSync(
+		new URL('../src/lib/components/ThreeHitFlight.svelte', import.meta.url),
+		'utf8'
+	);
+	assert.match(renderer, /profile\.wall\[0\]/);
+	assert.match(renderer, /profile\.wall\.at\(-1\)/);
+	assert.match(renderer, /CylinderGeometry\(1\.75, 2, poleHeight/);
+	assert.match(renderer, /color: 0xffd21f/);
+	assert.doesNotMatch(renderer, /framingPoints\.push\(\.\.\.foulPoleBounds\)/);
 });
 
 test('preserves current renovations where MLB fieldInfo still exposes legacy values', () => {
@@ -775,10 +834,10 @@ test('live and demo trackers select a reusable current-ballpark field by venue i
 		'utf8'
 	);
 	const demo = readFileSync(new URL('../src/routes/demo/+page.svelte', import.meta.url), 'utf8');
-	assert.match(tracker, /import BallparkField from '\$lib\/components\/BallparkField\.svelte'/);
+	assert.match(tracker, /import ThreeHitFlight from '\$lib\/components\/ThreeHitFlight\.svelte'/);
 	assert.match(tracker, /fieldProfileForVenue\(venueId\)/);
 	assert.match(tracker, /untrack\(\(\) => selectedMode\)/);
-	assert.match(tracker, /<BallparkField/);
+	assert.match(tracker, /<ThreeHitFlight/);
 	assert.match(dashboard, /venueId=\{feed\?\.gameData\.venue\?\.id \?\? game\.venue\?\.id\}/);
 	assert.match(demo, /import \{ BALLPARK_PROFILES \} from '\$lib\/field-geometry\.js'/);
 	assert.match(demo, /bind:value=\{selectedVenueId\}/);

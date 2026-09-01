@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import BallparkField from '$lib/components/BallparkField.svelte';
 	import PitchTrajectory from '$lib/components/PitchTrajectory.svelte';
+	import ThreeHitFlight from '$lib/components/ThreeHitFlight.svelte';
 	import { fieldProfileForVenue } from '$lib/field-geometry.js';
+	import { hitFlightRenderKey } from '$lib/hit-flight.js';
 	import type { Play } from '$lib/mlb';
 	import {
 		advanceVisualizationState,
@@ -48,6 +49,12 @@
 	const currentContact = $derived(latestBattedBall(currentPlay ? [currentPlay] : []));
 	const lastContact = $derived(currentContact ?? latestBattedBall(hitHistory));
 	const fieldProfile = $derived(fieldProfileForVenue(venueId));
+	const contactDescription = $derived(lastContact?.play?.result?.description ?? '');
+	const currentFlightKey = $derived(
+		lastContact && fieldProfile
+			? `${gamePk ?? 'game'}:${lastContact.play?.about?.atBatIndex ?? 'contact'}:${hitFlightRenderKey(lastContact.hitData, contactDescription, fieldProfile)}`
+			: ''
+	);
 	const hitPoint = $derived.by(() => {
 		const coordinates = lastContact?.hitData?.coordinates;
 		const coordX = coordinates?.coordX;
@@ -118,11 +125,15 @@
 				/>
 			{:else if lastContact && fieldProfile}
 				<div class="field-view ballpark-view">
-					<BallparkField
-						profile={fieldProfile}
-						hitData={lastContact.hitData}
-						description={lastContact.play?.result?.description ?? ''}
-					/>
+					{#key currentFlightKey}
+						<ThreeHitFlight
+							profile={fieldProfile}
+							hitData={lastContact.hitData}
+							description={contactDescription}
+							resultEvent={lastContact.play?.result?.event}
+							resultEventType={lastContact.play?.result?.eventType}
+						/>
+					{/key}
 				</div>
 			{:else if lastContact && hitPoint}
 				<div class="field-view">

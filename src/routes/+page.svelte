@@ -9,6 +9,7 @@
 	import OffDayView from '$lib/components/OffDayView.svelte';
 	import { preservePitchTelemetry } from '$lib/visualization.js';
 	import {
+		activeSlateDate,
 		chooseInitialGame,
 		isPiratesGame,
 		orderTodayGames,
@@ -26,7 +27,7 @@
 		fetchHitHistory,
 		fetchPiratesNextSchedule,
 		fetchSeasonProfiles,
-		fetchTodaySchedule,
+		fetchActiveSlateSchedule,
 		isLive,
 		isPreview,
 		liveRefreshDelay,
@@ -130,11 +131,12 @@
 		scheduleController?.abort();
 		scheduleController = new AbortController();
 		try {
-			const schedule = await fetchTodaySchedule(gameDate, scheduleController.signal);
+			const schedule = await fetchActiveSlateSchedule(gameDate, scheduleController.signal);
 			const datedGames = schedule.dates.flatMap((date) =>
 				date.games.map((game) => ({ ...game, scheduleDate: date.date }))
 			);
-			todayGames = orderTodayGames(datedGames.filter((game) => game.scheduleDate === gameDate));
+			const slateDate = activeSlateDate(gameDate, datedGames);
+			todayGames = orderTodayGames(datedGames.filter((game) => game.scheduleDate === slateDate));
 
 			const chosen = initializedSelection
 				? preserveOrChooseGame(todayGames, selectedGamePk)
