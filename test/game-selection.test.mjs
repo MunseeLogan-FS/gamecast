@@ -125,3 +125,22 @@ test('keeps the Pirates next-game URL constrained to team 134 and seven days', (
 	assert.equal(url.searchParams.get('startDate'), '2026-08-08');
 	assert.equal(url.searchParams.get('endDate'), '2026-08-15');
 });
+
+test('requests the prior date as part of the active slate rollover window', () => {
+	const url = new URL(mlb.buildActiveSlateScheduleUrl('https://example.test/api', '2026-08-09'));
+	assert.equal(url.searchParams.get('startDate'), '2026-08-08');
+	assert.equal(url.searchParams.get('endDate'), '2026-08-09');
+});
+
+test('keeps the prior slate while a late game is still live after midnight Eastern', () => {
+	const lateLive = { ...liveOther, scheduleDate: '2026-08-08' };
+	const tomorrowPreview = { ...previewOther, scheduleDate: '2026-08-09' };
+	assert.equal(selection.activeSlateDate('2026-08-09', [lateLive, tomorrowPreview]), '2026-08-08');
+	assert.equal(
+		selection.activeSlateDate('2026-08-09', [
+			{ ...lateLive, status: status('Final') },
+			tomorrowPreview
+		]),
+		'2026-08-09'
+	);
+});

@@ -453,6 +453,16 @@ export function buildTodayScheduleUrl(root: string, dateKey: string) {
 	return `${root}/v1/schedule?${params}`;
 }
 
+export function buildActiveSlateScheduleUrl(root: string, dateKey: string) {
+	const params = new URLSearchParams({
+		sportId: '1',
+		startDate: addDays(dateKey, -1),
+		endDate: dateKey,
+		hydrate: 'team,linescore,probablePitcher,venue,weather,seriesStatus,broadcasts'
+	});
+	return `${root}/v1/schedule?${params}`;
+}
+
 export function buildPiratesNextScheduleUrl(root: string, dateKey: string) {
 	const params = new URLSearchParams({
 		sportId: '1',
@@ -472,6 +482,10 @@ async function fetchSchedule(url: string, signal?: AbortSignal) {
 
 export function fetchTodaySchedule(dateKey: string, signal?: AbortSignal) {
 	return fetchSchedule(buildTodayScheduleUrl(API_ROOT, dateKey), signal);
+}
+
+export function fetchActiveSlateSchedule(dateKey: string, signal?: AbortSignal) {
+	return fetchSchedule(buildActiveSlateScheduleUrl(API_ROOT, dateKey), signal);
 }
 
 export function fetchPiratesNextSchedule(dateKey: string, signal?: AbortSignal) {

@@ -1,3 +1,5 @@
+import { ballparkAppearance } from './ballpark-appearance.js';
+
 const SHARED_VIEW_BOX = Object.freeze({
 	width: 250,
 	height: 220,
@@ -11,7 +13,7 @@ const SHARED_VIEW_BOX = Object.freeze({
  *  venueId: number,
  *  name: string,
  *  dimensions: {leftLine: number, left?: number, leftCenter: number, center: number, rightCenter: number, right?: number, rightLine: number},
- *  wall: Array<{angle: number, distance: number, label?: string}>,
+ *  wall: Array<{angle: number, distance: number, label?: string, height?: number}>,
  *  sources: string[],
  *  wallHeights?: Record<string, number>,
  *  highlights?: Array<{fromAngle: number, toAngle: number, color: string}>
@@ -22,6 +24,7 @@ export function defineBallpark(input) {
 		teamId: input.teamId,
 		venueId: input.venueId,
 		name: input.name,
+		appearance: ballparkAppearance(input.venueId),
 		viewBox: SHARED_VIEW_BOX,
 		dimensions: Object.freeze(input.dimensions),
 		wallHeights: Object.freeze(input.wallHeights ?? {}),
@@ -89,16 +92,16 @@ export const PNC_PARK = defineBallpark({
 	wallHeights: { left: 6, leftCenter: 10, right: 21 },
 	highlights: [{ fromAngle: 22.5, toAngle: 45, color: '#fdb827' }],
 	wall: [
-		{ angle: -45, distance: 325, label: '325' },
-		{ angle: -36, distance: 362 },
-		{ angle: -27, distance: 389, label: '389' },
-		{ angle: -21, distance: 395 },
-		{ angle: -15, distance: 410, label: '410' },
-		{ angle: 0, distance: 399, label: '399' },
-		{ angle: 12, distance: 395 },
-		{ angle: 22.5, distance: 375, label: '375' },
-		{ angle: 34, distance: 350 },
-		{ angle: 45, distance: 320, label: '320' }
+		{ angle: -45, distance: 325, label: '325', height: 6 },
+		{ angle: -36, distance: 362, height: 6 },
+		{ angle: -27, distance: 389, label: '389', height: 6 },
+		{ angle: -21, distance: 395, height: 10 },
+		{ angle: -15, distance: 410, label: '410', height: 10 },
+		{ angle: 0, distance: 399, label: '399', height: 8 },
+		{ angle: 12, distance: 395, height: 8 },
+		{ angle: 22.5, distance: 375, label: '375', height: 21 },
+		{ angle: 34, distance: 350, height: 21 },
+		{ angle: 45, distance: 320, label: '320', height: 21 }
 	],
 	sources: [
 		'https://www.mlb.com/pirates/ballpark/facts',
