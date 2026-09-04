@@ -22,6 +22,7 @@ import {
 	AT_BAT_REFRESH_MS,
 	BETWEEN_AT_BATS_REFRESH_MS,
 	BETWEEN_INNINGS_REFRESH_MS,
+	inningBreak,
 	liveRefreshDelay
 } from '../src/lib/mlb.ts';
 import {
@@ -48,7 +49,9 @@ test('main gamecast exposes B/S/O only during live play', () => {
 		new URL('../src/lib/components/LiveDashboard.svelte', import.meta.url),
 		'utf8'
 	);
-	assert.match(source, /\{#if isLive\(status\)\}\s*<div\s+class="count-board"/);
+	assert.match(source, /\{#if isLive\(status\) && !inningPause\}\s*<div\s+class="count-board"/);
+	assert.match(source, /class="inning-break" role="status" aria-live="polite"/);
+	assert.match(source, /Showing the completed at-bat until play resumes/);
 	assert.match(source, /Math\.min\(linescore\?\.outs \?\? 0, 2\)/);
 });
 
@@ -339,6 +342,32 @@ test('paces live refreshes around the natural game rhythm', () => {
 	assert.equal(liveRefreshDelay({ inningState: 'Top' }, completePlay), BETWEEN_AT_BATS_REFRESH_MS);
 	assert.equal(liveRefreshDelay({ inningState: 'Middle' }, activePlay), BETWEEN_INNINGS_REFRESH_MS);
 	assert.equal(liveRefreshDelay({ inningState: 'End' }, completePlay), BETWEEN_INNINGS_REFRESH_MS);
+});
+
+test('describes inning breaks without discarding the completed at-bat', () => {
+	assert.deepEqual(
+		inningBreak(
+			{ currentInning: 7, currentInningOrdinal: '7th', inningState: 'Middle' },
+			{ name: 'Chicago Cubs' },
+			{ name: 'Pittsburgh Pirates' }
+		),
+		{
+			label: 'Middle of the 7th',
+			next: 'Pittsburgh Pirates coming to bat'
+		}
+	);
+	assert.deepEqual(
+		inningBreak(
+			{ currentInning: 7, currentInningOrdinal: '7th', inningState: 'End' },
+			{ name: 'Chicago Cubs' },
+			{ name: 'Pittsburgh Pirates' }
+		),
+		{
+			label: 'End of the 7th',
+			next: 'Chicago Cubs coming to bat'
+		}
+	);
+	assert.equal(inningBreak({ currentInning: 7, inningState: 'Top' }), null);
 });
 
 test('tracking view follows contact, waits between batters, then returns for the next pitch', () => {

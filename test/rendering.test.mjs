@@ -6,6 +6,7 @@ import { createServer } from 'vite';
 let vite;
 let render;
 let GameVisualization;
+let LiveDashboard;
 let PitchTrajectory;
 let ThreePitchTrajectory;
 let ThreeHitFlight;
@@ -17,6 +18,9 @@ before(async () => {
 	vite = await createServer({ appType: 'custom', server: { middlewareMode: true } });
 	({ render } = await vite.ssrLoadModule('svelte/server'));
 	({ default: GameVisualization } = await vite.ssrLoadModule('/src/lib/GameVisualization.svelte'));
+	({ default: LiveDashboard } = await vite.ssrLoadModule(
+		'/src/lib/components/LiveDashboard.svelte'
+	));
 	({ default: PitchTrajectory } = await vite.ssrLoadModule(
 		'/src/lib/components/PitchTrajectory.svelte'
 	));
@@ -52,6 +56,52 @@ test('renders a current ballpark profile and the unknown-venue fallback', () => 
 	assert.match(pnc, /Current field dimensions/);
 	assert.match(fallback, /aria-label="Batted-ball location"/);
 	assert.doesNotMatch(fallback, /Current field dimensions/);
+});
+
+test('renders an inning break while preserving the completed at-bat', () => {
+	const game = {
+		gamePk: 123,
+		gameDate: '2026-09-04T23:05:00Z',
+		status: { abstractGameState: 'Live', detailedState: 'In Progress' },
+		teams: {
+			away: { team: { id: 112, name: 'Chicago Cubs', abbreviation: 'CHC' }, score: 2 },
+			home: { team: { id: 134, name: 'Pittsburgh Pirates', abbreviation: 'PIT' }, score: 3 }
+		}
+	};
+	const feed = {
+		gamePk: 123,
+		gameData: {
+			status: game.status,
+			teams: { away: game.teams.away.team, home: game.teams.home.team }
+		},
+		liveData: {
+			linescore: {
+				currentInning: 7,
+				currentInningOrdinal: '7th',
+				inningState: 'Middle',
+				teams: { away: { runs: 2 }, home: { runs: 3 } }
+			},
+			plays: { allPlays: [DEMO_CURRENT_PLAY], currentPlay: DEMO_CURRENT_PLAY }
+		}
+	};
+	const body = render(LiveDashboard, {
+		props: {
+			game,
+			feed,
+			boxscore: null,
+			visualizationPlay: DEMO_CURRENT_PLAY,
+			hitHistory: DEMO_HIT_HISTORY,
+			highlights: [],
+			feedLoading: false,
+			onRefresh: () => {}
+		}
+	}).body;
+	assert.match(body, /class="inning-break [^"]*"/);
+	assert.match(body, /Middle of the 7th/);
+	assert.match(body, /Pittsburgh Pirates coming to bat/);
+	assert.match(body, /Last at bat/);
+	assert.match(body, /At-bat pitches/);
+	assert.doesNotMatch(body, /class="count-board/);
 });
 
 test('renders a projected Three.js flight over the selected custom ballpark', () => {

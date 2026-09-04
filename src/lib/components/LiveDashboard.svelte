@@ -6,6 +6,7 @@
 	import { matchHighlightsToPlays, type GameHighlight } from '$lib/highlights';
 	import { currentAtBatPitches } from '$lib/visualization.js';
 	import {
+		inningBreak,
 		isFinal,
 		isLive,
 		type GameBoxscore,
@@ -44,8 +45,9 @@
 	const away = $derived(feed?.gameData.teams.away ?? game.teams.away.team);
 	const home = $derived(feed?.gameData.teams.home ?? game.teams.home.team);
 	const linescore = $derived(feed?.liveData.linescore);
+	const inningPause = $derived(isLive(status) ? inningBreak(linescore, away, home) : null);
 	const activeBatterId = $derived(
-		isLive(status)
+		isLive(status) && !inningPause
 			? (linescore?.offense?.batter?.id ?? feed?.liveData.plays.currentPlay?.matchup?.batter?.id)
 			: undefined
 	);
@@ -91,9 +93,21 @@
 </script>
 
 <section class="game-dashboard">
+	{#if inningPause}
+		<div class="inning-break" role="status" aria-live="polite">
+			<div class="break-state"><i></i><span>Inning break</span></div>
+			<div class="break-copy">
+				<strong>{inningPause.label}</strong>
+				<p>{inningPause.next}</p>
+			</div>
+			<small>Showing the completed at-bat until play resumes.</small>
+		</div>
+	{/if}
 	<div class="game-primary-grid">
 		<aside class="at-bat-panel">
-			<p class="section-label">{isFinal(status) ? 'Final frame' : 'At bat'}</p>
+			<p class="section-label">
+				{isFinal(status) ? 'Final frame' : inningPause ? 'Last at bat' : 'At bat'}
+			</p>
 			<div class="matchup-names">
 				<div>
 					<span>Batter</span><strong
@@ -110,7 +124,7 @@
 					>
 				</div>
 			</div>
-			{#if isLive(status)}
+			{#if isLive(status) && !inningPause}
 				<div
 					class="count-board"
 					aria-label={`${linescore?.balls ?? 0} balls, ${linescore?.strikes ?? 0} strikes, ${linescore?.outs ?? 0} outs`}
@@ -180,6 +194,7 @@
 				live={isLive(status)}
 				gamePk={game.gamePk}
 				venueId={feed?.gameData.venue?.id ?? game.venue?.id}
+				betweenInnings={!!inningPause}
 			/>
 		</div>
 
@@ -295,6 +310,71 @@
 		grid-template-columns: minmax(240px, 280px) minmax(400px, 1fr) minmax(280px, 320px);
 		gap: 16px;
 		align-items: stretch;
+	}
+	.inning-break {
+		position: relative;
+		min-height: 76px;
+		margin-bottom: 16px;
+		padding: 15px 20px 15px 24px;
+		display: grid;
+		grid-template-columns: 128px minmax(0, 1fr) auto;
+		gap: 22px;
+		align-items: center;
+		overflow: hidden;
+		background: #171715;
+		color: #f5f5ef;
+		border-left: 5px solid var(--game-accent, #fdb827);
+		box-shadow: 0 8px 26px rgba(0, 0, 0, 0.12);
+	}
+	.inning-break::after {
+		content: '';
+		position: absolute;
+		right: -32px;
+		top: -60px;
+		width: 180px;
+		height: 180px;
+		border: 1px solid color-mix(in srgb, var(--game-accent, #fdb827) 28%, transparent);
+		border-radius: 50%;
+	}
+	.break-state {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		color: var(--game-accent, #fdb827);
+		font-size: 9px;
+		font-weight: 900;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+	}
+	.break-state i {
+		width: 9px;
+		height: 9px;
+		border: 2px solid var(--game-accent, #fdb827);
+		border-radius: 50%;
+		box-shadow: 0 0 0 5px color-mix(in srgb, var(--game-accent, #fdb827) 13%, transparent);
+		animation: break-pulse 2s ease-in-out infinite;
+	}
+	.break-copy strong {
+		display: block;
+		font:
+			900 20px/1 'Arial Narrow',
+			sans-serif;
+		letter-spacing: 0.02em;
+		text-transform: uppercase;
+	}
+	.break-copy p {
+		margin: 6px 0 0;
+		color: #c8c8c1;
+		font-size: 10px;
+	}
+	.inning-break small {
+		position: relative;
+		z-index: 1;
+		max-width: 250px;
+		color: #b8b8b1;
+		font-size: 10px;
+		line-height: 1.45;
+		text-align: right;
 	}
 	.lineup-slot {
 		min-width: 0;
@@ -674,6 +754,12 @@
 			transform: rotate(360deg);
 		}
 	}
+	@keyframes break-pulse {
+		50% {
+			opacity: 0.45;
+			transform: scale(0.82);
+		}
+	}
 	@media (max-width: 1100px) {
 		.game-primary-grid {
 			grid-template-columns: minmax(250px, 300px) minmax(0, 1fr);
@@ -683,6 +769,15 @@
 		}
 	}
 	@media (max-width: 820px) {
+		.inning-break {
+			grid-template-columns: auto 1fr;
+			gap: 12px 18px;
+		}
+		.inning-break small {
+			grid-column: 2;
+			max-width: none;
+			text-align: left;
+		}
 		.game-primary-grid {
 			grid-template-columns: 1fr;
 		}
@@ -698,6 +793,14 @@
 		}
 	}
 	@media (max-width: 570px) {
+		.inning-break {
+			padding: 14px 14px 14px 17px;
+			grid-template-columns: 1fr;
+			gap: 10px;
+		}
+		.inning-break small {
+			grid-column: auto;
+		}
 		.panel-heading {
 			padding: 15px 13px;
 			align-items: flex-end;
@@ -728,6 +831,7 @@
 		}
 	}
 	@media (prefers-reduced-motion: reduce) {
+		.break-state i,
 		.refresh.spinning {
 			animation: none;
 		}

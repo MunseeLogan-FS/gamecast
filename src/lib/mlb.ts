@@ -568,6 +568,31 @@ export function isPreview(status?: GameStatus) {
 	return status?.abstractGameState === 'Preview';
 }
 
+export function inningBreak(
+	linescore?: LineScore,
+	away?: Pick<TeamRef, 'name'>,
+	home?: Pick<TeamRef, 'name'>
+) {
+	const state = linescore?.inningState?.trim() ?? '';
+	if (!/^(middle|end)$/i.test(state)) return null;
+
+	const inning =
+		linescore?.currentInningOrdinal ??
+		(linescore?.currentInning !== undefined ? ordinal(linescore.currentInning) : 'inning');
+	const middle = /^middle$/i.test(state);
+	const nextTeam = middle ? (home?.name ?? 'Home team') : (away?.name ?? 'Away team');
+	return {
+		label: `${middle ? 'Middle' : 'End'} of the ${inning}`,
+		next: `${nextTeam} coming to bat`
+	};
+}
+
+function ordinal(value: number) {
+	const remainder = value % 100;
+	if (remainder >= 11 && remainder <= 13) return `${value}th`;
+	return `${value}${value % 10 === 1 ? 'st' : value % 10 === 2 ? 'nd' : value % 10 === 3 ? 'rd' : 'th'}`;
+}
+
 export function liveRefreshDelay(linescore?: LineScore, currentPlay?: Play) {
 	if (/^(middle|end)/i.test(linescore?.inningState?.trim() ?? '')) {
 		return BETWEEN_INNINGS_REFRESH_MS;

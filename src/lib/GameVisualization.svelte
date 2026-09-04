@@ -18,6 +18,7 @@
 		live = false,
 		venueId,
 		gamePk,
+		betweenInnings = false,
 		initialMode = 'zone'
 	}: {
 		currentPlay?: Play;
@@ -25,6 +26,7 @@
 		live?: boolean;
 		venueId?: number;
 		gamePk?: number;
+		betweenInnings?: boolean;
 		initialMode?: 'zone' | 'field';
 	} = $props();
 	let selectedMode = $state<'zone' | 'field'>(untrack(() => initialMode));
@@ -95,7 +97,9 @@
 <section class="visualization" aria-label="Pitch and batted-ball visualization">
 	<header>
 		<div>
-			<span class="kicker">Tracking</span>
+			<span class="kicker" class:paused={betweenInnings}
+				>{betweenInnings ? 'Inning break' : 'Tracking'}</span
+			>
 			<strong>{selectedMode === 'zone' ? 'Pitch location' : 'Ball in play'}</strong>
 		</div>
 		<div class="view-switch" role="group" aria-label="Visualization type">
@@ -177,8 +181,8 @@
 
 	<div class="viz-caption">
 		{#if selectedMode === 'zone'}
-			<span class:live={live && !!newestPitch}
-				>{live ? 'Current at-bat' : 'Last at-bat'} · {pitchEvents.length}
+			<span class:live={live && !betweenInnings && !!newestPitch}
+				>{live && !betweenInnings ? 'Current at-bat' : 'Last at-bat'} · {pitchEvents.length}
 				{pitchEvents.length === 1 ? 'pitch' : 'pitches'}</span
 			>
 			<p>
@@ -235,6 +239,9 @@
 		font-weight: 900;
 		letter-spacing: 0.18em;
 		text-transform: uppercase;
+	}
+	.kicker.paused {
+		color: #fdb827;
 	}
 	.visualization header strong {
 		margin-top: 4px;
